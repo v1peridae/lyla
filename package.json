@@ -50,6 +50,7 @@
     "gopd": "^1.2.0",
     "has-symbols": "^1.1.0",
     "hasown": "^2.0.2",
+    "heroku": "^10.0.0",
     "http-errors": "^2.0.0",
     "iconv-lite": "^0.5.2",
     "inherits": "^2.0.4",

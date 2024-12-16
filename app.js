@@ -9,45 +9,17 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-const REQUIRED_SCOPES = [
-  "channels:history",
-  "groups:history",
-  "im:history",
-  "mpim:history",
-  "chat:write",
-  "reactions:read",
-  "users:read",
-  "commands",
-];
-
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
 app.event("reaction_added", async ({ event, client }) => {
   console.log("Reaction event received:", {
     channel: event.item.channel,
     reaction: event.reaction,
-    item_type: event.item.type,
-    event_type: event.type,
   });
 
   if (event.reaction !== "ban") return;
 
   try {
-    let channelInfo;
-    try {
-      channelInfo = await client.conversations.info({
-        channel: event.item.channel,
-      });
-    } catch (error) {
-      console.error("Error getting channel info:", error);
-      return;
-    }
-
-    if (!channelInfo.ok) {
-      console.error("No access to this conversation or conversation not found");
-      return;
-    }
-
     await client.chat.postMessage({
       channel: event.item.channel,
       thread_ts: event.item.ts,
@@ -71,10 +43,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
   } catch (error) {
-    console.error("Error posting message:", error, {
-      channel: event.item.channel,
-      reaction: event.reaction,
-    });
+    console.error("Error posting message:", error);
   }
 });
 
@@ -127,17 +96,10 @@ const modalBlocks = [
 app.action("open_conduct_modal", async ({ ack, body, client }) => {
   await ack();
   try {
-    let permalink;
-    try {
-      const permalinkResponse = await client.chat.getPermalink({
-        channel: body.channel.id,
-        message_ts: body.message.thread_ts || body.message.ts,
-      });
-      permalink = permalinkResponse.permalink;
-    } catch (error) {
-      console.error("Error getting permalink:", error);
-      permalink = "Permalink unavailable";
-    }
+    const permalinkResponse = await client.chat.getPermalink({
+      channel: body.channel.id,
+      message_ts: body.message.thread_ts || body.message.ts,
+    });
 
     await client.views.open({
       trigger_id: body.trigger_id,
@@ -147,7 +109,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
         private_metadata: JSON.stringify({
           channel: body.channel.id,
           thread_ts: body.message.thread_ts || body.message.ts,
-          permalink: permalink,
+          permalink: permalinkResponse.permalink,
         }),
         title: { type: "plain_text", text: "FD Record Keeping" },
         blocks: modalBlocks,
@@ -155,7 +117,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
       },
     });
   } catch (error) {
-    console.error("Error opening modal:", error);
+    console.error(error);
   }
 });
 
@@ -252,12 +214,6 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 });
 
 (async () => {
-  try {
-    await app.start();
-    console.log("⚡️ Bolt app is running!");
-    console.log("Required scopes:", REQUIRED_SCOPES.join(", "));
-  } catch (error) {
-    console.error("Error starting the app:", error);
-    process.exit(1);
-  }
+  await app.start();
+  console.log("⚡️ Bolt app is running!");
 })();

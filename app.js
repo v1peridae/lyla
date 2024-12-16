@@ -10,18 +10,10 @@ const app = new App({
 });
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-<<<<<<< HEAD
-=======
-const ALLOWED_CHANNELS = ["C07UBURESHZ"];
->>>>>>> parent of 527b104 (added the fd channels)
+const ALLOWED_CHANNELS = ["C07FL3G62LF", "G01DBHPLK25"];
 
 app.event("reaction_added", async ({ event, client }) => {
-  console.log("Reaction event received:", {
-    channel: event.item.channel,
-    reaction: event.reaction,
-  });
-
-  if (event.reaction !== "ban") return;
+  if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
   try {
     await client.chat.postMessage({

@@ -15,12 +15,16 @@ app.event("reaction_added", async ({ event, client }) => {
   console.log("Reaction event received:", {
     channel: event.item.channel,
     reaction: event.reaction,
+    user: event.user,
+    item: event.item,
+    eventTs: event.event_ts,
   });
 
   if (event.reaction !== "ban") return;
 
   try {
-    await client.chat.postMessage({
+    console.log("Attempting to post message in channel:", event.item.channel);
+    const result = await client.chat.postMessage({
       channel: event.item.channel,
       thread_ts: event.item.ts,
       text: "Wanna file a conduct report?",
@@ -42,8 +46,14 @@ app.event("reaction_added", async ({ event, client }) => {
         },
       ],
     });
+    console.log("Message posted successfully:", result);
   } catch (error) {
     console.error("Error posting message:", error);
+    console.error("Error details:", {
+      error: error.message,
+      channel: event.item.channel,
+      data: error.data,
+    });
   }
 });
 

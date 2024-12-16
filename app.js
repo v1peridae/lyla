@@ -5,11 +5,11 @@ require("dotenv").config();
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: true,
-  appToken: process.env.SLACK_APP_TOKEN,
+  socketMode: false,
+  port: process.env.PORT || 3000,
 });
 
-const base = new Airtable({ apiKey: process.env.AIRTABLE_PATOKEN }).base(process.env.AIRTABLE_BASE_ID);
+const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 const ALLOWED_CHANNELS = ["C07UBURESHZ"];
 
 app.event("reaction_added", async ({ event, client }) => {
@@ -212,8 +212,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
   }
 });
 
-app.error(console.error);
 (async () => {
-  await app.start(process.env.PORT || 3000);
+  await app.start();
   console.log("⚡️ Bolt app is running!");
 })();

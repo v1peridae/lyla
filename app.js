@@ -10,6 +10,10 @@ const app = new App({
 });
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
+<<<<<<< HEAD
+=======
+const ALLOWED_CHANNELS = ["C07UBURESHZ"];
+>>>>>>> parent of 527b104 (added the fd channels)
 
 app.event("reaction_added", async ({ event, client }) => {
   console.log("Reaction event received:", {

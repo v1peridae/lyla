@@ -10,7 +10,7 @@ const app = new App({
 });
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-const ALLOWED_CHANNELS = ["C07FL3G62LF", "G01DBHPLK25"];
+const ALLOWED_CHANNELS = ["C07FL3G62LF"];
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;

@@ -224,6 +224,37 @@ app.command("/prevreports", async ({ command, ack, client }) => {
   }
 });
 
+app.command("/listreminders", async ({ command, ack, client }) => {
+  await ack();
+
+  try {
+    const response = await client.reminders.list();
+    const reminders = response.reminders;
+
+    if (reminders.length === 0) {
+      await client.chat.postMessage({
+        channel: command.channel_id,
+        text: "No reminders found.",
+      });
+    } else {
+      const reminderText = reminders
+        .map((reminder) => `*Reminder:* ${reminder.text}\n*Time:* ${new Date(reminder.time * 1000).toLocaleString()}`)
+        .join("\n\n");
+
+      await client.chat.postMessage({
+        channel: command.channel_id,
+        text: `Here are your reminders:\n\n${reminderText}`,
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching reminders:", error);
+    await client.chat.postMessage({
+      channel: command.channel_id,
+      text: "There was an error fetching reminders.",
+    });
+  }
+});
+
 (async () => {
   await app.start();
   console.log("⚡️ Bolt app is running!");

@@ -10,7 +10,7 @@ const app = new App({
 });
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-const ALLOWED_CHANNELS = ["C07FL3G62LF", "G01DBHPLK25"];
+const ALLOWED_CHANNELS = ["C07UBURESHZ"];
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -122,6 +122,7 @@ app.view("conduct_report", async ({ ack, view, client, body }) => {
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
+    const banDate = values.ban_until.ban_date_input.selected_date;
 
     const airtableData = {
       "Time Of Report": new Date().toISOString(),
@@ -134,6 +135,14 @@ app.view("conduct_report", async ({ ack, view, client, body }) => {
     };
 
     await base("Conduct Reports").create(airtableData);
+
+    if (banDate) {
+      const reportedUser = values.reported_user.user_select.selected_user;
+      await client.chat.postMessage({
+        channel: channel,
+        text: `/remind #${channel} "Unban<@${reportedUser}>!" at ${banDate} 9:00AM`,
+      });
+    }
 
     const reportFields = [
       `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
@@ -168,7 +177,12 @@ app.command("/prevreports", async ({ command, ack, client }) => {
   await ack();
 
   try {
-    const userId = command.text.trim();
+    let userId = command.text.trim();
+    const mentionMatch = userId.match(/^<@([A-Z0-9]+)>$/);
+    if (mentionMatch) {
+      userId = mentionMatch[1];
+    }
+
     const records = await base("Conduct Reports")
       .select({
         filterByFormula: `{User Being Dealt With} = '${userId}'`,

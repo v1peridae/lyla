@@ -140,7 +140,7 @@ app.view("conduct_report", async ({ ack, view, client, body }) => {
       const reportedUser = values.reported_user.user_select.selected_user;
       await client.chat.postMessage({
         channel: channel,
-        text: `/remind #${channel} "Unban<@${reportedUser}>!" at ${banDate} 9:00AM`,
+        text: `/remind #lou-bot-testing "Unban <@${reportedUser}>" at ${banDate} 9:00AM`,
       });
     }
 

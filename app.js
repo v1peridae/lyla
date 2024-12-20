@@ -133,15 +133,6 @@ app.view("conduct_report", async ({ ack, view, client }) => {
 
     await base("Conduct Reports").create(airtableData);
 
-    if (banDate) {
-      const reportedUser = values.reported_user.user_select.selected_user;
-      await client.reminders.add({
-        text: `Unban <@${reportedUser}>`,
-        time: banDate + "1:20PM",
-        user: reportedUser,
-      });
-    }
-
     await client.chat.postMessage({
       channel,
       thread_ts,

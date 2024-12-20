@@ -185,7 +185,6 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           channel: ALLOWED_CHANNELS[0],
           message_ts: msg.ts,
         });
-        console.log("Permalink:", permalinkResp.permalink);
         const timestamp = new Date(msg.ts * 1000).toLocaleString();
         return `*Message from: ${timestamp}*\n${msg.text}\n<${permalinkResp.permalink}|View message>`;
       })
@@ -198,10 +197,12 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsText}`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
           },
         },
       ],
+      unfurl_links: false,
+      unfurl_media: false,
     });
   } catch (error) {
     console.error(error);

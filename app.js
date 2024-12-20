@@ -162,8 +162,6 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       userId = mentionMatch[1];
     }
 
-    console.log("Searching for messages mentioning:", userId);
-
     const result = await client.conversations.history({
       channel: ALLOWED_CHANNELS[0],
       limit: 10,
@@ -171,10 +169,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
     const relevantMsgs = result.messages.filter((message) => {
       const hasMention = message.text.includes(`<@${userId}>`);
-      const hasFwd = message.blocks?.some((block) =>
-        block.elements?.some((element) => element.elements?.some((subElement) => subElement.text?.includes(`<@${userId}>`)))
-      );
-      return hasMention || hasFwd;
+      return hasMention;
     });
 
     if (!relevantMsgs.length) {
@@ -207,9 +202,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           },
         },
       ],
+      unfurl_links: false,
+      unfurl_media: false,
     });
   } catch (error) {
-    console.error("Error in /prevreports:", error);
+    console.error(error);
     await client.chat.postMessage({
       channel: command.channel_id,
       text: "Oopsie, eh I'll get to that!",

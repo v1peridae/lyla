@@ -169,7 +169,10 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
     const relevantMsgs = result.messages.filter((message) => {
       const hasMention = message.text.includes(`<@${userId}>`);
-      return hasMention;
+      const hasFwd = message.blocks?.some((block) =>
+        block.elements?.some((element) => element.elements?.some((subElement) => subElement.text?.includes(`<@${userId}>`)))
+      );
+      return hasMention || hasFwd;
     });
 
     if (!relevantMsgs.length) {
@@ -198,7 +201,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsText}`,
           },
         },
       ],

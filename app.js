@@ -175,7 +175,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     if (!relevantMsgs.length) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No previous messages mentioning <@${userId}> found.`,
+        text: `No previous messages mentioning <@${userId}> found :(`,
       });
     }
 
@@ -198,12 +198,10 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsText}`,
           },
         },
       ],
-      unfurl_links: false,
-      unfurl_media: false,
     });
   } catch (error) {
     console.error(error);

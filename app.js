@@ -1,5 +1,4 @@
 const { App } = require("@slack/bolt");
-const Airtable = require("airtable");
 require("dotenv").config();
 
 const app = new App({
@@ -9,7 +8,6 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 const ALLOWED_CHANNELS = ["C07UBURESHZ"];
 
 app.event("reaction_added", async ({ event, client }) => {
@@ -117,22 +115,21 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
   }
 });
 
-app.view("conduct_report", async ({ ack, view, client, body }) => {
+app.view("conduct_report", async ({ ack, view, client }) => {
   await ack();
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
     const banDate = values.ban_until.ban_date_input.selected_date;
 
-    const airtableData = {
-      "Time Of Report": new Date().toISOString(),
-      "Dealt With By": body.user.id,
-      "User Being Dealt With": values.reported_user.user_select.selected_user,
-      "What Did User Do": values.violation_deets.violation_deets_input.value,
-      "How Was This Resolved": values.solution_deets.solution_input.value,
-      "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
-      "Link To Message": permalink,
-    };
+    const reportFields = [
+      `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
+      `*Resolved By:*\n<@${values.resolved_by.resolver_select.selected_user}>`,
+      `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
+      `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
+      `*If Banned, Ban Until:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
+      `*Link To Message:*\n${permalink}`,
+    ];
 
     await base("Conduct Reports").create(airtableData);
 
@@ -145,23 +142,14 @@ app.view("conduct_report", async ({ ack, view, client, body }) => {
       });
     }
 
-    const reportFields = [
-      `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
-      `*Resolved By:*\n<@${values.resolved_by.resolver_select.selected_user}>`,
-      `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
-      `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned, Ban Until:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
-      `*Link To Message:*\n${permalink}`,
-    ];
-
     await client.chat.postMessage({
       channel,
       thread_ts,
-      text: "Added to the Airtable",
+      text: "Conduct Report Filed :yay:",
       blocks: [
         {
           type: "section",
-          text: { type: "mrkdwn", text: "*Your Conduct Report Has Been Added To The Airtable, thank youu!*" },
+          text: { type: "mrkdwn", text: "*Thanks for filling this <3*" },
         },
         {
           type: "section",
@@ -176,7 +164,6 @@ app.view("conduct_report", async ({ ack, view, client, body }) => {
 
 app.command("/prevreports", async ({ command, ack, client }) => {
   await ack();
-
   try {
     let userId = command.text.trim();
     const mentionMatch = userId.match(/^<@([A-Z0-9]+)>$/);
@@ -184,27 +171,28 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       userId = mentionMatch[1];
     }
 
-    const records = await base("Conduct Reports")
-      .select({
-        filterByFormula: `{User Being Dealt With} = '${userId}'`,
-      })
-      .all();
+    const result = await client.conversations.history({
+      channel: ALLOWED_CHANNELS[0],
+      limit: 10,
+    });
 
-    if (!records.length) {
+    const relevantMsgs = result.messages.filter((message) => {
+      const hasMention = message.text.includes(`<@${userId}>`);
+      return hasMention;
+    });
+
+    if (!relevantMsgs.length) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No previous conduct reports found for <@${userId}>.`,
+        text: `No previous messages mentioning <@${userId}> found.`,
       });
     }
 
-    const reportsText = records
-      .map(
-        ({ fields }) =>
-          `*Report from: ${fields["Time Of Report"]}*\n` +
-          `Dealt with by: <@${fields["Dealt With By"]}>\n` +
-          `What they did: ${fields["What Did User Do"]}\n` +
-          `How we dealt with this: ${fields["How Was This Resolved"]}`
-      )
+    const msgsText = relevantMsgs
+      .map((msg) => {
+        const timestamp = new Date(msg.ts * 1000).toLocaleString();
+        return `*Message from: ${timestamp}*\n${msg.text}`;
+      })
       .join("\n\n");
 
     await client.chat.postMessage({
@@ -214,13 +202,17 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Previous reports for <@${userId}>:\n\n${reportsText}`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsText}`,
           },
         },
       ],
     });
   } catch (error) {
     console.error(error);
+    await client.chat.postMessage({
+      channel: command.channel_id,
+      text: "Oopsie, eh I'll get to that!",
+    });
   }
 });
 

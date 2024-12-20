@@ -162,6 +162,8 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       userId = mentionMatch[1];
     }
 
+    console.log("Searching for messages mentioning:", userId);
+
     const result = await client.conversations.history({
       channel: ALLOWED_CHANNELS[0],
       limit: 10,
@@ -201,13 +203,13 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsText}`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
           },
         },
       ],
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error in /prevreports:", error);
     await client.chat.postMessage({
       channel: command.channel_id,
       text: "Oopsie, eh I'll get to that!",

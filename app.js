@@ -37,7 +37,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error posting message:", error);
   }
 });
 
@@ -178,16 +178,17 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         text: `No previous messages mentioning <@${userId}> found :(`,
       });
 
+      // Schedule deletion after 1 hour
       setTimeout(async () => {
         try {
           await client.chat.delete({
             channel: command.channel_id,
             ts: response.ts,
           });
-        } catch (error) {
-          console.error(error);
+        } catch (err) {
+          console.error("Error deleting message:", err);
         }
-      }, 60 * 60 * 1000);
+      }, 60 * 1000);
 
       return;
     }
@@ -217,9 +218,20 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       unfurl_links: false,
       unfurl_media: false,
     });
+
+    setTimeout(async () => {
+      try {
+        await client.chat.delete({
+          channel: command.channel_id,
+          ts: response.ts,
+        });
+      } catch (err) {
+        console.error("Error deleting message:", err);
+      }
+    }, 60 * 1000);
   } catch (error) {
     console.error(error);
-    const response = await client.chat.postMessage({
+    await client.chat.postMessage({
       channel: command.channel_id,
       text: "Oopsie, eh I'll get to that!",
     });

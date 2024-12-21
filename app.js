@@ -187,7 +187,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         } catch (error) {
           console.error(error);
         }
-      }, 60 * 60 * 1000);
+      }, 60 * 1000);
 
       return;
     }

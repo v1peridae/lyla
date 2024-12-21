@@ -37,7 +37,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
   } catch (error) {
-    console.error("Error posting message:", error);
+    console.error(error);
   }
 });
 
@@ -173,10 +173,23 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     });
 
     if (!relevantMsgs.length) {
-      return await client.chat.postMessage({
+      const response = await client.chat.postMessage({
         channel: command.channel_id,
         text: `No previous messages mentioning <@${userId}> found :(`,
       });
+
+      setTimeout(async () => {
+        try {
+          await client.chat.delete({
+            channel: command.channel_id,
+            ts: response.ts,
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }, 60 * 60 * 1000);
+
+      return;
     }
 
     const msgsWithLinks = await Promise.all(
@@ -190,14 +203,16 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       })
     );
 
-    await client.chat.postMessage({
+    const response = await client.chat.postMessage({
       channel: command.channel_id,
       blocks: [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join(
+              "\n\n"
+            )}\n\n_This message will be automatically deleted in 1 hour._`,
           },
         },
       ],
@@ -206,7 +221,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     });
   } catch (error) {
     console.error(error);
-    await client.chat.postMessage({
+    const response = await client.chat.postMessage({
       channel: command.channel_id,
       text: "Oopsie, eh I'll get to that!",
     });

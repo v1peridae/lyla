@@ -8,7 +8,7 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-const ALLOWED_CHANNELS = ["C07UBURESHZ"];
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF"];
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;

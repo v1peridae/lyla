@@ -173,24 +173,10 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     });
 
     if (!relevantMsgs.length) {
-      const response = await client.chat.postMessage({
+      return await client.chat.postMessage({
         channel: command.channel_id,
         text: `No previous messages mentioning <@${userId}> found :(`,
       });
-
-      // Schedule deletion after 1 hour
-      setTimeout(async () => {
-        try {
-          await client.chat.delete({
-            channel: command.channel_id,
-            ts: response.ts,
-          });
-        } catch (err) {
-          console.error("Error deleting message:", err);
-        }
-      }, 60 * 1000);
-
-      return;
     }
 
     const msgsWithLinks = await Promise.all(
@@ -204,31 +190,20 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       })
     );
 
-    const response = await client.chat.postMessage({
+    await client.chat.postMessage({
       channel: command.channel_id,
       blocks: [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}\n\n_This message will be deleted in an hour._`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
           },
         },
       ],
       unfurl_links: false,
       unfurl_media: false,
     });
-
-    setTimeout(async () => {
-      try {
-        await client.chat.delete({
-          channel: command.channel_id,
-          ts: response.ts,
-        });
-      } catch (err) {
-        console.error("Error deleting message:", err);
-      }
-    }, 60 * 1000);
   } catch (error) {
     console.error(error);
     await client.chat.postMessage({

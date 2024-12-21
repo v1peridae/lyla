@@ -212,7 +212,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
             type: "mrkdwn",
             text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join(
               "\n\n"
-            )}\n\n_This message will be automatically  deleted in an hour._`,
+            )}\n\n_Just letting you know this message will be deleted in an hour._`,
           },
         },
       ],

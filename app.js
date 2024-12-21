@@ -187,7 +187,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         } catch (error) {
           console.error(error);
         }
-      }, 60 * 1000);
+      }, 60 * 60 * 1000);
 
       return;
     }
@@ -210,9 +210,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join(
-              "\n\n"
-            )}\n\n_Just letting you know this message will be deleted in an hour._`,
+            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}\n\n_This message will be deleted in an hour._`,
           },
         },
       ],

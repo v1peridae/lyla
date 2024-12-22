@@ -216,7 +216,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       } catch (error) {
         console.error(error);
       }
-    }, 7200000);
+    }, 600);
   } catch (error) {
     console.error(error);
     await client.chat.postMessage({

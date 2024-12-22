@@ -123,7 +123,6 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
-    const banDate = values.ban_until.ban_date_input.selected_date;
 
     const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
 
@@ -135,8 +134,6 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*If Banned, Ban Until:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
       `*Link To Message:*\n${permalink}`,
     ];
-
-    await base("Conduct Reports").create(airtableData);
 
     await client.chat.postMessage({
       channel,
@@ -221,7 +218,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       } catch (error) {
         console.error(error);
       }
-    }, 6000);
+    }, 3600000);
   } catch (error) {
     console.error(error);
     await client.chat.postMessage({

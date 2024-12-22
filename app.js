@@ -192,7 +192,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       })
     );
 
-    await client.chat.postMessage({
+    const response = await client.chat.postMessage({
       channel: command.channel_id,
       blocks: [
         {
@@ -206,6 +206,17 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       unfurl_links: false,
       unfurl_media: false,
     });
+
+    setTimeout(async () => {
+      try {
+        await client.chat.delete({
+          channel: command.channel_id,
+          ts: response.ts,
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }, 7200000);
   } catch (error) {
     console.error(error);
     await client.chat.postMessage({

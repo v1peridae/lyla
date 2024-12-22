@@ -192,13 +192,13 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     }
 
     const msgsWithLinks = await Promise.all(
-      relevantMsgs.map(async (msg) => {
+      relevantMsgs.slice(0, 10).map(async (msg) => {
         const permalinkResp = await client.chat.getPermalink({
           channel: ALLOWED_CHANNELS[0],
           message_ts: msg.ts,
         });
 
-        const messageDate = new Date(msg.ts * 1000);
+        const messageDate = new Date(parseFloat(msg.ts) * 1000);
         const formattedDate = messageDate.toLocaleDateString("en-GB", {
           day: "numeric",
           month: "short",
@@ -211,18 +211,23 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         });
         const timestamp = `${formattedDate} at ${formattedTime}`;
 
-        return `*Message from: ${timestamp}*\n${msg.text}\n<${permalinkResp.permalink}|View message>`;
+        const shortenedText = msg.text.length > 200 ? msg.text.substring(0, 200) + "..." : msg.text;
+
+        return `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`;
       })
     );
 
+    const messageText = `Messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`;
+
     const response = await client.chat.postMessage({
       channel: command.channel_id,
+      text: messageText,
       blocks: [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`,
+            text: messageText.substring(0, 2900),
           },
         },
       ],

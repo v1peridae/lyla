@@ -8,7 +8,7 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07FL3G62LF"];
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -71,7 +71,7 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "ban_until",
-    label: { type: "plain_text", text: "If Banned, Until When?" },
+    label: { type: "plain_text", text: "If Banned or Shushed, Until When?" },
     element: {
       type: "datepicker",
       action_id: "ban_date_input",
@@ -131,7 +131,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Resolved By:*\n${resolvedBy}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned, Ban Until:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
+      `*If Banned or Shushed, Until When:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
       `*Link To Message:*\n${permalink}`,
     ];
 

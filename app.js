@@ -126,12 +126,20 @@ app.view("conduct_report", async ({ ack, view, client }) => {
 
     const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
 
+    const banDate = values.ban_until.ban_date_input.selected_date
+      ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "N/A";
+
     const reportFields = [
       `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
       `*Resolved By:*\n${resolvedBy}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned or Shushed, Until When:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
+      `*If Banned, Ban Until:*\n${banDate || "N/A"}`,
       `*Link To Message:*\n${permalink}`,
     ];
 
@@ -189,7 +197,20 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           channel: ALLOWED_CHANNELS[0],
           message_ts: msg.ts,
         });
-        const timestamp = new Date(msg.ts * 1000).toLocaleString();
+
+        const messageDate = new Date(msg.ts * 1000);
+        const formattedDate = messageDate.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+        const formattedTime = messageDate.toLocaleString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+        const timestamp = `${formattedDate} at ${formattedTime}`;
+
         return `*Message from: ${timestamp}*\n${msg.text}\n<${permalinkResp.permalink}|View message>`;
       })
     );

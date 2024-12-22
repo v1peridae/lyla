@@ -83,7 +83,10 @@ const modalBlocks = [
     type: "input",
     block_id: "resolved_by",
     label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
-    element: { type: "users_select", action_id: "resolver_select" },
+    element: {
+      type: "multi_users_select",
+      action_id: "resolver_select",
+    },
   },
 ];
 
@@ -122,9 +125,11 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
     const banDate = values.ban_until.ban_date_input.selected_date;
 
+    const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
+
     const reportFields = [
       `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
-      `*Resolved By:*\n<@${values.resolved_by.resolver_select.selected_user}>`,
+      `*Resolved By:*\n${resolvedBy}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
       `*If Banned, Ban Until:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,

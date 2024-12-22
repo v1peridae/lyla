@@ -8,7 +8,7 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF"];
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07FL3G62LF"];
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -37,7 +37,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
   } catch (error) {
-    console.error("Error posting message:", error);
+    console.error(error);
   }
 });
 
@@ -157,14 +157,16 @@ app.command("/prevreports", async ({ command, ack, client }) => {
   await ack();
   try {
     let userId = command.text.trim();
-    const mentionMatch = userId.match(/^<@([A-Z0-9]+)>$/);
-    if (mentionMatch) {
-      userId = mentionMatch[1];
+    const usersResponse = await client.users.list();
+    const users = usersResponse.members;
+    const user = users.find((u) => u.profile.display_name === userId || u.name === userId);
+    if (user) {
+      userId = user.id;
     }
 
     const result = await client.conversations.history({
       channel: ALLOWED_CHANNELS[0],
-      limit: 10,
+      limit: 1000,
     });
 
     const relevantMsgs = result.messages.filter((message) => {
@@ -175,7 +177,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     if (!relevantMsgs.length) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No previous messages mentioning <@${userId}> found :(`,
+        text: `No previous messages mentioning ${userId} found :(`,
       });
     }
 
@@ -197,7 +199,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Messages mentioning <@${userId}>:\n\n${msgsWithLinks.join("\n\n")}`,
+            text: `Messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`,
           },
         },
       ],

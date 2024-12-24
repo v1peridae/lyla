@@ -1,7 +1,7 @@
 const { App } = require("@slack/bolt");
 require("dotenv").config(); // Load environment variables from .env file (i can send you these on slack DM)
 const Airtable = require("airtable");
-const base = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY }).base(process.env.AIRTABLE_BASE_ID);
+const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
 // Initialize Slack app w/ configuration (you probably also need to have a couple of stuff installed)
 const app = new App({
@@ -252,7 +252,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     } else {
       await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No Slack messages mentioning <@${userId}> found.`,
+        text: `No Slack messages mentioning <@${userId}> found</3`,
       });
     }
 
@@ -318,7 +318,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     } else {
       await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No conduct reports found for <@${userId}>.`,
+        text: `No Airtable reports found for <@${userId}> :D.`,
       });
     }
   } catch (error) {

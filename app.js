@@ -164,14 +164,19 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     // Filter msgs that mention the user
     const relevantMsgs = result.messages.filter((message) => {
       const hasMention = message.text.includes(`<@${userId}>`);
-      return hasMention;
+      const isForwarded = message.user === userId;
+      return hasMention || isForwarded;
     });
 
     // If no messages found, send a notification (rn i get this)
     if (!relevantMsgs.length) {
       return await client.chat.postMessage({
         channel: command.channel_id,
+<<<<<<< HEAD
         text: `No previous messages mentioning <@${userId}> found :(`,
+=======
+        text: `No previous messages mentioning or from ${userId} found :(`,
+>>>>>>> parent of a0b0abf (we back)
       });
     }
 

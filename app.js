@@ -159,8 +159,6 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     const result = await client.conversations.history({
       channel: ALLOWED_CHANNELS[0],
       limit: 1000,
-      latest: command.ts,
-      inclusive: true,
     });
 
     // Filter msgs that mention the user

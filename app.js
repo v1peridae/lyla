@@ -1,5 +1,4 @@
 const { App } = require("@slack/bolt");
-const Airtable = require("airtable");
 require("dotenv").config();
 
 const app = new App({
@@ -9,8 +8,7 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-const ALLOWED_CHANNELS = ["C07FL3G62LF", "G01DBHPLK25"];
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -39,7 +37,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
   } catch (error) {
-    console.error("Error posting message:", error);
+    console.error(error);
   }
 });
 
@@ -73,7 +71,7 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "ban_until",
-    label: { type: "plain_text", text: "If Banned, Until When?" },
+    label: { type: "plain_text", text: "If Banned or Shushed, Until When?" },
     element: {
       type: "datepicker",
       action_id: "ban_date_input",
@@ -85,7 +83,10 @@ const modalBlocks = [
     type: "input",
     block_id: "resolved_by",
     label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
-    element: { type: "users_select", action_id: "resolver_select" },
+    element: {
+      type: "multi_users_select",
+      action_id: "resolver_select",
+    },
   },
 ];
 
@@ -117,41 +118,39 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
   }
 });
 
-app.view("conduct_report", async ({ ack, view, client, body }) => {
+app.view("conduct_report", async ({ ack, view, client }) => {
   await ack();
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
 
-    const airtableData = {
-      "Time Of Report": new Date().toISOString(),
-      "Dealt With By": body.user.id,
-      "User Being Dealt With": values.reported_user.user_select.selected_user,
-      "What Did User Do": values.violation_deets.violation_deets_input.value,
-      "How Was This Resolved": values.solution_deets.solution_input.value,
-      "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
-      "Link To Message": permalink,
-    };
+    const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
 
-    await base("Conduct Reports").create(airtableData);
+    const banDate = values.ban_until.ban_date_input.selected_date
+      ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : "N/A";
 
     const reportFields = [
       `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
-      `*Resolved By:*\n<@${values.resolved_by.resolver_select.selected_user}>`,
+      `*Resolved By:*\n${resolvedBy}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned, Ban Until:*\n${values.ban_until.ban_date_input.selected_date || "N/A"}`,
+      `*If Banned, Ban Until:*\n${banDate || "N/A"}`,
       `*Link To Message:*\n${permalink}`,
     ];
 
     await client.chat.postMessage({
       channel,
       thread_ts,
-      text: "Added to the Airtable",
+      text: "Conduct Report Filed :yay:",
       blocks: [
         {
           type: "section",
-          text: { type: "mrkdwn", text: "*Your Conduct Report Has Been Added To The Airtable, thank youu!*" },
+          text: { type: "mrkdwn", text: "*Thanks for filling this <3*" },
         },
         {
           type: "section",
@@ -166,46 +165,92 @@ app.view("conduct_report", async ({ ack, view, client, body }) => {
 
 app.command("/prevreports", async ({ command, ack, client }) => {
   await ack();
-
   try {
-    const userId = command.text.trim();
-    const records = await base("Conduct Reports")
-      .select({
-        filterByFormula: `{User Being Dealt With} = '${userId}'`,
-      })
-      .all();
+    let userId = command.text.trim();
+    const usersResponse = await client.users.list();
+    const users = usersResponse.members;
+    const user = users.find((u) => u.profile.display_name === userId || u.name === userId);
+    if (user) {
+      userId = user.id;
+    }
 
-    if (!records.length) {
+    const result = await client.conversations.history({
+      channel: ALLOWED_CHANNELS[0],
+      limit: 1000,
+    });
+
+    const relevantMsgs = result.messages.filter((message) => {
+      const hasMention = message.text.includes(`<@${userId}>`);
+      return hasMention;
+    });
+
+    if (!relevantMsgs.length) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No previous conduct reports found for <@${userId}>.`,
+        text: `No previous messages mentioning ${userId} found :(`,
       });
     }
 
-    const reportsText = records
-      .map(
-        ({ fields }) =>
-          `*Report from: ${fields["Time Of Report"]}*\n` +
-          `Dealt with by: <@${fields["Dealt With By"]}>\n` +
-          `What they did: ${fields["What Did User Do"]}\n` +
-          `How we dealt with this: ${fields["How Was This Resolved"]}`
-      )
-      .join("\n\n");
+    const msgsWithLinks = await Promise.all(
+      relevantMsgs.slice(0, 10).map(async (msg) => {
+        const permalinkResp = await client.chat.getPermalink({
+          channel: ALLOWED_CHANNELS[0],
+          message_ts: msg.ts,
+        });
 
-    await client.chat.postMessage({
+        const messageDate = new Date(parseFloat(msg.ts) * 1000);
+        const formattedDate = messageDate.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+        const formattedTime = messageDate.toLocaleString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+        const timestamp = `${formattedDate} at ${formattedTime}`;
+
+        const shortenedText = msg.text.length > 200 ? msg.text.substring(0, 200) + "..." : msg.text;
+
+        return `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`;
+      })
+    );
+
+    const messageText = `Messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`;
+
+    const response = await client.chat.postMessage({
       channel: command.channel_id,
+      text: messageText,
       blocks: [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `Previous reports for <@${userId}>:\n\n${reportsText}`,
+            text: messageText.substring(0, 2900),
           },
         },
       ],
+      unfurl_links: false,
+      unfurl_media: false,
     });
+
+    setTimeout(async () => {
+      try {
+        await client.chat.delete({
+          channel: command.channel_id,
+          ts: response.ts,
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }, 3600000);
   } catch (error) {
     console.error(error);
+    await client.chat.postMessage({
+      channel: command.channel_id,
+      text: "Oopsie, eh I'll get to that!",
+    });
   }
 });
 

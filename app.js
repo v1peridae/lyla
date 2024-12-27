@@ -1,4 +1,5 @@
 const { App } = require("@slack/bolt");
+const { WebClient } = require("@slack/web-api");
 require("dotenv").config();
 
 const app = new App({
@@ -7,6 +8,8 @@ const app = new App({
   socketMode: false,
   port: process.env.PORT || 3000,
 });
+
+const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
@@ -178,7 +181,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       userId = user.id;
     }
 
-    const msgSearch = await client.search.messages({
+    const msgSearch = await userClient.search.messages({
       query: `<@${userId}>`,
       count: 10,
       sort: "timestamp",

@@ -183,7 +183,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
     const msgSearch = await userClient.search.messages({
       query: `<@${userId}>`,
-      count: 10,
+      count: 100,
       sort: "timestamp",
       sort_dir: "desc",
     });

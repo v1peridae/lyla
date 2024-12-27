@@ -196,7 +196,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     }
 
     const msgsWithLinks = await Promise.all(
-      result.messages.matches
+      msgSearch.messages.matches
         .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
         .map(async (match) => {
           const permalinkResp = await client.chat.getPermalink({

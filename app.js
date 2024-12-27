@@ -1,7 +1,6 @@
 const { App } = require("@slack/bolt");
-require("dotenv").config(); // Load environment variables from .env file (i can send you these on slack DM)
+require("dotenv").config();
 
-// Initialize Slack app w/ configuration (you probably also need to have a couple of stuff installed)
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -9,20 +8,15 @@ const app = new App({
   port: process.env.PORT || 3000,
 });
 
-// List of Slack channel IDs where the bot can work (you can add your bot testing channel here)
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
-// Listen for when a reaction is added to a msg
 app.event("reaction_added", async ({ event, client }) => {
-  // Only cont. if the reaction is in an allowed channel and is the ban emoji
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
   try {
-    // Send a message asking if the user wants to file a conduct report
-    // This message has a button that opens a modal form
     await client.chat.postMessage({
       channel: event.item.channel,
-      thread_ts: event.item.ts, // Reply in thread of the original message
+      thread_ts: event.item.ts,
       text: "Wanna file a conduct report?",
       blocks: [
         {
@@ -47,33 +41,72 @@ app.event("reaction_added", async ({ event, client }) => {
   }
 });
 
-// The structure of the form
 const modalBlocks = [
   {
     type: "input",
     block_id: "reported_user",
     label: { type: "plain_text", text: "User Being Reported?" },
-    element: { type: "users_select", action_id: "user_select" },
+    element: {
+      type: "users_select",
+      action_id: "user_select",
+      include_restricted_users: true,
+    },
+  },
+  {
+    type: "input",
+    block_id: "violation_deets",
+    label: { type: "plain_text", text: "What Did They Do?" },
+    element: {
+      type: "plain_text_input",
+      action_id: "violation_deets_input",
+      multiline: true,
+    },
+  },
+  {
+    type: "input",
+    block_id: "solution_deets",
+    label: { type: "plain_text", text: "How Was This Solved?" },
+    element: {
+      type: "plain_text_input",
+      action_id: "solution_input",
+      multiline: true,
+    },
+  },
+  {
+    type: "input",
+    block_id: "ban_until",
+    label: { type: "plain_text", text: "If Banned or Shushed, Until When?" },
+    element: {
+      type: "datepicker",
+      action_id: "ban_date_input",
+      placeholder: { type: "plain_text", text: "Select a date" },
+    },
+    optional: true,
+  },
+  {
+    type: "input",
+    block_id: "resolved_by",
+    label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
+    element: {
+      type: "multi_users_select",
+      action_id: "resolver_select",
+    },
   },
 ];
 
-// Handling when someone clicks the "File A Report" button
 app.action("open_conduct_modal", async ({ ack, body, client }) => {
   await ack();
   try {
-    // Get the perma link to the msg that was reacted to
     const permalinkResponse = await client.chat.getPermalink({
       channel: body.channel.id,
       message_ts: body.message.thread_ts || body.message.ts,
     });
 
-    // Open the modal form
     await client.views.open({
       trigger_id: body.trigger_id,
       view: {
         type: "modal",
         callback_id: "conduct_report",
-        // Have channel info and message link in the metadata
         private_metadata: JSON.stringify({
           channel: body.channel.id,
           thread_ts: body.message.thread_ts || body.message.ts,
@@ -89,18 +122,14 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
   }
 });
 
-// When the conduct report form is submitted
 app.view("conduct_report", async ({ ack, view, client }) => {
   await ack();
   try {
-    // Extract form values and metadata, mmhm yummy
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
 
-    // Format the users who resolved the issue
     const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
 
-    // Format the ban date
     const banDate = values.ban_until.ban_date_input.selected_date
       ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
           day: "numeric",
@@ -114,11 +143,10 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Resolved By:*\n${resolvedBy}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned, Ban Until:*\n${banDate || "N/A"}`,
+      `*If Banned or Shushed, Until:*\n${banDate || "N/A"}`,
       `*Link To Message:*\n${permalink}`,
     ];
 
-    // Post the completed report in thread
     await client.chat.postMessage({
       channel,
       thread_ts,
@@ -139,97 +167,77 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   }
 });
 
-// When the /prevreports slash command is used (THIS IS STILL A BIG MESS SO YOU HAVE BEENWARNED YOU ARE ENTERING ENEMY TERRITORY)
 app.command("/prevreports", async ({ command, ack, client }) => {
   await ack();
   try {
-    // Member ID thingamagings
     let userId = command.text.trim();
-    if (!userId.startsWith("<@") || !userId.endsWith(">")) {
+    const usersResponse = await client.users.list();
+    const users = usersResponse.members;
+    const user = users.find((u) => u.profile.display_name === userId || u.name === userId);
+    if (user) {
+      userId = user.id;
+    }
+
+    const msgSearch = await client.search.messages({
+      query: `<@${userId}>`,
+      count: 10,
+      sort: "timestamp",
+      sort_dir: "desc",
+    });
+
+    if (!msgSearch.messages.matches.length) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: "Please use the @user format to specify a user.",
+        text: `No previous messages mentioning ${userId} found :(`,
       });
     }
 
-    // Extract the user ID from the <@user> format
-    userId = userId.slice(2, -1).split("|")[0];
-
-    // Get channel history (rahhhh this is like where it gets messyyy)
-    const result = await client.conversations.history({
-      channel: ALLOWED_CHANNELS[0],
-      limit: 1000,
-    });
-
-    // Filter msgs that mention the user
-    const relevantMsgs = result.messages.filter((message) => {
-      const hasMention = message.text.includes(`<@${userId}>`);
-      const isForwarded = message.user === userId;
-      return hasMention || isForwarded;
-    });
-
-    // If no messages found, send a notification (rn i get this)
-    if (!relevantMsgs.length) {
-      return await client.chat.postMessage({
-        channel: command.channel_id,
-<<<<<<< HEAD
-        text: `No previous messages mentioning <@${userId}> found :(`,
-=======
-        text: `No previous messages mentioning or from ${userId} found :(`,
->>>>>>> parent of a0b0abf (we back)
-      });
-    }
-
-    // Format messages w/ permalinks
     const msgsWithLinks = await Promise.all(
-      relevantMsgs.slice(0, 10).map(async (msg) => {
-        const permalinkResp = await client.chat.getPermalink({
-          channel: ALLOWED_CHANNELS[0],
-          message_ts: msg.ts,
-        });
+      result.messages.matches
+        .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
+        .map(async (match) => {
+          const permalinkResp = await client.chat.getPermalink({
+            channel: match.channel.id,
+            message_ts: match.ts,
+          });
 
-        // Format the timestamp (using british date format #ilovekilometers and celcius)
-        const messageDate = new Date(parseFloat(msg.ts) * 1000);
-        const formattedDate = messageDate.toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
-        const formattedTime = messageDate.toLocaleString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-        const timestamp = `${formattedDate} at ${formattedTime}`;
+          const messageDate = new Date(parseFloat(match.ts) * 1000);
+          const formattedDate = messageDate.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+          const formattedTime = messageDate.toLocaleString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+          const timestamp = `${formattedDate} at ${formattedTime}`;
 
-        return {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*Message from: ${timestamp}*\n${msg.text}\n<${permalinkResp.permalink}|View full message>`,
-          },
-        };
-      })
+          const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+
+          return `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`;
+        })
     );
+
+    const messageText = `Messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`;
 
     const response = await client.chat.postMessage({
       channel: command.channel_id,
-      text: `Messages mentioning <@${userId}>:`,
+      text: messageText,
       blocks: [
         {
-          type: "header",
+          type: "section",
           text: {
-            type: "plain_text",
-            text: `Messages mentioning <@${userId}>:`,
+            type: "mrkdwn",
+            text: messageText.substring(0, 2900),
           },
         },
-        ...msgsWithLinks,
       ],
       unfurl_links: false,
       unfurl_media: false,
     });
 
-    // Delete the message after an hour
     setTimeout(async () => {
       try {
         await client.chat.delete({
@@ -249,8 +257,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
   }
 });
 
-// Start the Slack bot
 (async () => {
   await app.start();
-  console.log("meow i think");
+  console.log("⚡️ Bolt app is running!");
 })();

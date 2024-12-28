@@ -197,7 +197,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
 
-    const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1) : userId.replace(/[<@>]/g, "");
+    console.log("Original userId:", userId);
+
+    const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
+
+    console.log("Cleaned userId:", cleanUserId);
 
     let messageText = "";
 
@@ -252,6 +256,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           sort: [{ field: "Time Of Report", direction: "desc" }],
         })
         .all();
+
+      console.log("Found records:", records.length);
+      if (records.length > 0) {
+        console.log("Record User Being Dealt With:", records[0].fields["User Being Dealt With"]);
+      }
 
       if (!records.length) {
         return await client.chat.postMessage({

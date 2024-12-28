@@ -197,7 +197,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
 
-    const cleanUserId = userId.replace(/[<@>]/g, "");
+    const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1) : userId.replace(/[<@>]/g, "");
 
     let messageText = "";
 

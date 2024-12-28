@@ -299,17 +299,13 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
           const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
 
-          let reportTxt = `*Report from ${date}*
+          let reportText = `*Report from ${date}*
 • *Dealt With By:* ${dealtWithBy}
 • *What Did User Do:* ${fields["What Did User Do"]}
-• *How Was This Resolved:* ${fields["How Was This Resolved"]}`;
+• *How Was This Resolved:* ${fields["How Was This Resolved"]}
+• <${fields["Link To Message"]}|View Message>`;
 
-          if (fields["If Banned, Until When"]) {
-            const banDate = new Date(fields["If Banned, Until When"]).toLocaleDateString("en-GB");
-            reportTxt += `\n• *If Banned, Until:* ${banDate}`;
-          }
-          reportTxt += `\n• *Message Link:* <${fields["Link To Message"]}|View Message>`;
-          return reportTxt;
+          return reportText;
         })
       );
 

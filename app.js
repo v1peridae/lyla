@@ -55,7 +55,6 @@ const modalBlocks = [
     element: {
       type: "users_select",
       action_id: "user_select",
-      include_restricted_users: true,
     },
   },
   {

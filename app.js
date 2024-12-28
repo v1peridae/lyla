@@ -193,13 +193,9 @@ async function getAllMessages(userId) {
 
   while (hasMore && page <= 100) {
     try {
-      if (page > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
       const msgSearch = await userClient.search.messages({
         query: `<@${userId}>`,
-        count: 100,
+        count: 10,
         page: page,
         sort: "timestamp",
         sort_dir: "desc",

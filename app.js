@@ -197,12 +197,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
 
-    const usersResponse = await client.users.list();
-    const users = usersResponse.members;
-    const user = users.find((u) => u.profile.display_name === userId || u.name === userId);
-    const resolvedUserId = user ? user.id : userId.replace(/[<@>]/g, "");
-
-    let messageText = "";
+    const resolvedUserId = userId.replace(/[<@>]/g, "");
 
     if (source.toLowerCase() === "slack") {
       const msgSearch = await userClient.search.messages({

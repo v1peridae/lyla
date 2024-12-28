@@ -197,7 +197,10 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
 
+    console.log("Command params:", { userId, source });
+
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
+    console.log("Cleaned user ID:", cleanUserId);
 
     if (source.toLowerCase() === "slack") {
       const msgSearch = await userClient.search.messages({
@@ -205,6 +208,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
+      });
+
+      console.log("Search results:", {
+        total: msgSearch.messages.matches.length,
+        firstMatch: msgSearch.messages.matches[0],
       });
 
       if (!msgSearch.messages.matches.length) {
@@ -362,10 +370,15 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       }
     }, 600000);
   } catch (error) {
-    console.error(error);
+    console.error("Error in /prevreports:", {
+      error: error.message,
+      stack: error.stack,
+      command: command,
+    });
+
     await client.chat.postMessage({
       channel: command.channel_id,
-      text: "Oopsie, eh I'll get to that!",
+      text: `Error: ${error.message}. Please try again or contact support.`,
     });
   }
 });

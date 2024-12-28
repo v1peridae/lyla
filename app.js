@@ -269,21 +269,44 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         });
       }
 
-      const reportEntries = records.map((record) => {
-        const fields = record.fields;
-        const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
+      const formatUserMentions = async (userIds, client) => {
+        if (!userIds) return "";
+        const uids = userIds
+          .replace(/[<@>]/g, "")
+          .split(",")
+          .map((id) => id.trim());
+        const mentions = [];
+        for (const uid of uids) {
+          try {
+            const result = await client.users.info({ user: uid });
+            mentions.push(`@${result.user.name}`);
+          } catch (error) {
+            mentions.push(uid);
+          }
+        }
 
-        return `*Report from ${date}*
-• *Dealt With By:* <@${fields["Dealt With By"]}>
+        return mentions.join(", ");
+      };
+
+      const reportEntries = await Promise.all(
+        records.map(async (record) => {
+          const fields = record.fields;
+          const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+
+          const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
+
+          return `*Report from ${date}*
+• *Dealt With By:* ${dealtWithBy}
 • *What Did User Do:* ${fields["What Did User Do"]}
 • *How Was This Resolved:* ${fields["How Was This Resolved"]}
 • *If Banned, Until:* ${fields["If Banned, Until When"] ? new Date(fields["If Banned, Until When"]).toLocaleDateString("en-GB") : "N/A"}
 • *Message Link:* ${fields["Link To Message"]}`;
-      });
+        })
+      );
 
       messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
     } else {

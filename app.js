@@ -197,10 +197,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
 
-    console.log("Command params:", { userId, source });
-
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
-    console.log("Cleaned user ID:", cleanUserId);
 
     if (source.toLowerCase() === "slack") {
       const msgSearch = await userClient.search.messages({
@@ -247,7 +244,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
             elements: [
               {
                 type: "button",
-                text: { type: "plain_text", text: "◀️ Previous" },
+                text: { type: "plain_text", text: "◀️" },
                 action_id: "prev_page",
                 value: JSON.stringify({
                   userId: cleanUserId,
@@ -259,7 +256,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
               },
               {
                 type: "button",
-                text: { type: "plain_text", text: "Next ▶️" },
+                text: { type: "plain_text", text: " ▶️" },
                 action_id: "next_page",
                 value: JSON.stringify({
                   userId: cleanUserId,
@@ -335,40 +332,40 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         })
       );
 
-      messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+      const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+
+      const response = await client.chat.postMessage({
+        channel: command.channel_id,
+        text: messageText,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: messageText.substring(0, 2900),
+            },
+          },
+        ],
+        unfurl_links: false,
+        unfurl_media: false,
+      });
+
+      setTimeout(async () => {
+        try {
+          await client.chat.delete({
+            channel: command.channel_id,
+            ts: response.ts,
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }, 600000);
     } else {
       return await client.chat.postMessage({
         channel: command.channel_id,
         text: "Erm you need to specify 'slack' or 'airtable' ",
       });
     }
-
-    const response = await client.chat.postMessage({
-      channel: command.channel_id,
-      text: messageText,
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: messageText.substring(0, 2900),
-          },
-        },
-      ],
-      unfurl_links: false,
-      unfurl_media: false,
-    });
-
-    setTimeout(async () => {
-      try {
-        await client.chat.delete({
-          channel: command.channel_id,
-          ts: response.ts,
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    }, 600000);
   } catch (error) {
     console.error("Error in /prevreports:", {
       error: error.message,

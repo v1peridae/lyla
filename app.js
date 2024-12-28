@@ -202,7 +202,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     if (source.toLowerCase() === "slack") {
       const msgSearch = await userClient.search.messages({
         query: `<@${cleanUserId}>`,
-        count: 100,
+        count: 200,
         sort: "timestamp",
         sort_dir: "desc",
       });
@@ -438,9 +438,14 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
   if (source === "slack") {
     const msgSearch = await userClient.search.messages({
       query: `<@${userId}>`,
-      count: 100,
+      count: 200,
       sort: "timestamp",
       sort_dir: "desc",
+    });
+
+    console.log("Search results:", {
+      total: msgSearch.messages.matches.length,
+      firstMatch: msgSearch.messages.matches[0],
     });
 
     const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));

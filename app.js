@@ -1,5 +1,6 @@
 const { App } = require("@slack/bolt");
 const { WebClient } = require("@slack/web-api");
+const Airtable = require("airtable");
 require("dotenv").config();
 
 const app = new App({
@@ -12,6 +13,8 @@ const app = new App({
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
+
+const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -141,6 +144,20 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         })
       : "N/A";
 
+    await base("Conduct Reports").create([
+      {
+        fields: {
+          "Time Of Report": new Date().toISOString(),
+          "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
+          "User Being Dealt With": values.reported_user.user_select.selected_user,
+          "What Did User Do": values.violation_deets.violation_deets_input.value,
+          "How Was This Resolved": values.solution_deets.solution_input.value,
+          "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
+          "Link To Message": permalink,
+        },
+      },
+    ]);
+
     const reportFields = [
       `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
       `*Resolved By:*\n${resolvedBy}`,
@@ -173,57 +190,103 @@ app.view("conduct_report", async ({ ack, view, client }) => {
 app.command("/prevreports", async ({ command, ack, client }) => {
   await ack();
   try {
-    let userId = command.text.trim();
-    const usersResponse = await client.users.list();
-    const users = usersResponse.members;
-    const user = users.find((u) => u.profile.display_name === userId || u.name === userId);
-    if (user) {
-      userId = user.id;
-    }
-
-    const msgSearch = await userClient.search.messages({
-      query: `<@${userId}>`,
-      count: 100,
-      sort: "timestamp",
-      sort_dir: "desc",
-    });
-
-    if (!msgSearch.messages.matches.length) {
+    const [userId, source] = command.text.trim().split(" ");
+    if (!userId || !source) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: `No previous messages mentioning ${userId} found :(`,
+        text: "Use the format: `/prevreports @user slack|airtable`",
       });
     }
 
-    const msgsWithLinks = await Promise.all(
-      msgSearch.messages.matches
-        .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
-        .map(async (match) => {
-          const permalinkResp = await client.chat.getPermalink({
-            channel: match.channel.id,
-            message_ts: match.ts,
-          });
+    const usersResponse = await client.users.list();
+    const users = usersResponse.members;
+    const user = users.find((u) => u.profile.display_name === userId || u.name === userId);
+    const resolvedUserId = user ? user.id : userId.replace(/[<@>]/g, "");
 
-          const messageDate = new Date(parseFloat(match.ts) * 1000);
-          const formattedDate = messageDate.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          });
-          const formattedTime = messageDate.toLocaleString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
-          const timestamp = `${formattedDate} at ${formattedTime}`;
+    let messageText = "";
 
-          const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+    if (source.toLowerCase() === "slack") {
+      const msgSearch = await userClient.search.messages({
+        query: `<@${resolvedUserId}>`,
+        count: 100,
+        sort: "timestamp",
+        sort_dir: "desc",
+      });
 
-          return `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`;
+      if (!msgSearch.messages.matches.length) {
+        return await client.chat.postMessage({
+          channel: command.channel_id,
+          text: `No previous messages mentioning ${userId} found in Slack :(`,
+        });
+      }
+
+      const msgsWithLinks = await Promise.all(
+        msgSearch.messages.matches
+          .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
+          .map(async (match) => {
+            const permalinkResp = await client.chat.getPermalink({
+              channel: match.channel.id,
+              message_ts: match.ts,
+            });
+
+            const messageDate = new Date(parseFloat(match.ts) * 1000);
+            const formattedDate = messageDate.toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            });
+            const formattedTime = messageDate.toLocaleString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            });
+            const timestamp = `${formattedDate} at ${formattedTime}`;
+
+            const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+
+            return `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`;
+          })
+      );
+
+      messageText = `Slack messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`;
+    } else if (source.toLowerCase() === "airtable") {
+      const records = await base("Conduct Reports")
+        .select({
+          filterByFormula: `{User Being Dealt With} = '${resolvedUserId}'`,
+          sort: [{ field: "Time Of Report", direction: "desc" }],
         })
-    );
+        .all();
 
-    const messageText = `Messages mentioning ${userId}:\n\n${msgsWithLinks.join("\n\n")}`;
+      if (!records.length) {
+        return await client.chat.postMessage({
+          channel: command.channel_id,
+          text: `No previous reports found in the Airtable Base for ${userId} :(`,
+        });
+      }
+
+      const reportEntries = records.map((record) => {
+        const fields = record.fields;
+        const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+        return `*Report from ${date}*
+• *Dealt With By:* <@${fields["Dealt With By"]}>
+• *What Did User Do:* ${fields["What Did User Do"]}
+• *How Was This Resolved:* ${fields["How Was This Resolved"]}
+• *If Banned, Until:* ${fields["If Banned, Until When"] ? new Date(fields["If Banned, Until When"]).toLocaleDateString("en-GB") : "N/A"}
+• *Message Link:* ${fields["Link To Message"]}`;
+      });
+
+      messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+    } else {
+      return await client.chat.postMessage({
+        channel: command.channel_id,
+        text: "Erm you need to specify 'slack' or 'airtable' ",
+      });
+    }
 
     const response = await client.chat.postMessage({
       channel: command.channel_id,
@@ -250,7 +313,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       } catch (error) {
         console.error(error);
       }
-    }, 3600000);
+    }, 600000);
   } catch (error) {
     console.error(error);
     await client.chat.postMessage({

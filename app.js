@@ -193,9 +193,13 @@ async function getAllMessages(userId) {
 
   while (hasMore && page <= 100) {
     try {
+      if (page > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
       const msgSearch = await userClient.search.messages({
         query: `<@${userId}>`,
-        count: 100, // Max messages per page
+        count: 100,
         page: page,
         sort: "timestamp",
         sort_dir: "desc",
@@ -208,6 +212,12 @@ async function getAllMessages(userId) {
         page++;
       }
     } catch (error) {
+      if (error.code === "ratelimited") {
+        const retryAfter = parseInt(error.retryAfter) || 30;
+        await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+        continue;
+      }
+
       console.error(`Error fetching page ${page}:`, error);
       hasMore = false;
     }
@@ -444,14 +454,14 @@ async function formatSlackMessagesPage(messages, page, pageSize, client) {
 app.action("prev_page", async ({ ack, body, client }) => {
   await ack();
   const { userId, currentPage, totalPages, source } = JSON.parse(body.actions[0].value);
-  const newPage = Math.max(1, currentPage - 1);
+  const newPage = Math.max(1, parseInt(currentPage) - 1);
   await updateMessageWithPage(body, client, userId, newPage, totalPages, source);
 });
 
 app.action("next_page", async ({ ack, body, client }) => {
   await ack();
   const { userId, currentPage, totalPages, source } = JSON.parse(body.actions[0].value);
-  const newPage = Math.min(totalPages, currentPage + 1);
+  const newPage = Math.min(totalPages, parseInt(currentPage) + 1);
   await updateMessageWithPage(body, client, userId, newPage, totalPages, source);
 });
 

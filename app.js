@@ -200,30 +200,54 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
 
     if (source.toLowerCase() === "slack") {
+      await client.chat.postMessage({
+        channel: command.channel_id,
+        text: `Searching messages... (this might take a while)`,
+      });
+
       const msgSearch = await userClient.search.messages({
         query: `<@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
+        page: 1,
       });
 
-      console.log("Search results:", {
-        total: msgSearch.messages.matches.length,
-        firstMatch: msgSearch.messages.matches[0],
+      console.log("Search pagination info:", {
+        page: msgSearch.messages.paging.page,
+        pages: msgSearch.messages.paging.pages,
+        total: msgSearch.messages.paging.total,
       });
 
-      if (!msgSearch.messages.matches.length) {
+      let allMessages = [...msgSearch.messages.matches];
+      let currentPage = 1;
+      const MAX_PAGES = 10;
+
+      while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
+        currentPage++;
+        const nextPageResults = await userClient.search.messages({
+          query: `<@${cleanUserId}>`,
+          count: 100,
+          sort: "timestamp",
+          sort_dir: "desc",
+          page: currentPage,
+        });
+        allMessages = [...allMessages, ...nextPageResults.messages.matches];
+      }
+
+      console.log("Total messages collected:", allMessages.length);
+
+      if (!allMessages.length) {
         return await client.chat.postMessage({
           channel: command.channel_id,
           text: `No previous messages mentioning ${userId} found in Slack :(`,
         });
       }
 
-      const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
+      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
       const PAGE_SIZE = 10;
       const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
-      const currentPage = 1;
 
       const messageBlock = await formatSlackMessagesPage(filteredMessages, currentPage, PAGE_SIZE, client);
 
@@ -271,6 +295,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         ],
         unfurl_links: false,
         unfurl_media: false,
+      });
+
+      await client.chat.postMessage({
+        channel: command.channel_id,
+        text: `Found ${allMessages.length} messages across ${currentPage} pages`,
       });
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")

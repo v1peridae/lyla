@@ -220,6 +220,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       let allMessages = [...msgSearch.messages.matches];
+      allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
       let currentPage = 1;
       const MAX_PAGES = 10;
 
@@ -248,6 +249,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const PAGE_SIZE = 10;
       const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
+      currentPage = 1;
 
       const messageBlock = await formatSlackMessagesPage(filteredMessages, currentPage, PAGE_SIZE, client);
 
@@ -295,11 +297,6 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         ],
         unfurl_links: false,
         unfurl_media: false,
-      });
-
-      await client.chat.postMessage({
-        channel: command.channel_id,
-        text: `Found ${allMessages.length} messages across ${currentPage} pages`,
       });
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")

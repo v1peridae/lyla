@@ -197,11 +197,13 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
 
-    const resolvedUserId = userId.replace(/[<@>]/g, "");
+    const cleanUserId = userId.replace(/[<@>]/g, "");
+
+    let messageText = "";
 
     if (source.toLowerCase() === "slack") {
       const msgSearch = await userClient.search.messages({
-        query: `<@${resolvedUserId}>`,
+        query: `<@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
@@ -246,7 +248,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({
-          filterByFormula: `{User Being Dealt With} = '${resolvedUserId}'`,
+          filterForm: `OR({User Being Dealt With} = '${cleanUserId}', {User Being Dealt With} = '<@${cleanUserId}>')`,
           sort: [{ field: "Time Of Report", direction: "desc" }],
         })
         .all();

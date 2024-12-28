@@ -248,7 +248,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({
-          filterForm: `OR({User Being Dealt With} = '${cleanUserId}', {User Being Dealt With} = '<@${cleanUserId}>')`,
+          filterByFormula: `{User Being Dealt With} = '${cleanUserId}'`,
           sort: [{ field: "Time Of Report", direction: "desc" }],
         })
         .all();

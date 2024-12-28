@@ -207,6 +207,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         sort_dir: "desc",
       });
 
+      console.log("Search results:", {
+        total: msgSearch.messages.matches.length,
+        firstMatch: msgSearch.messages.matches[0],
+      });
+
       if (!msgSearch.messages.matches.length) {
         return await client.chat.postMessage({
           channel: command.channel_id,
@@ -239,7 +244,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
             elements: [
               {
                 type: "button",
-                text: { type: "plain_text", text: "◀️ Previous" },
+                text: { type: "plain_text", text: "◀️" },
                 action_id: "prev_page",
                 value: JSON.stringify({
                   userId: cleanUserId,
@@ -247,11 +252,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
                   totalPages,
                   source: "slack",
                 }),
-                disabled: currentPage === 1,
+                style: currentPage === 1 ? "danger" : "primary",
               },
               {
                 type: "button",
-                text: { type: "plain_text", text: "Next ▶️" },
+                text: { type: "plain_text", text: " ▶️" },
                 action_id: "next_page",
                 value: JSON.stringify({
                   userId: cleanUserId,
@@ -259,7 +264,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
                   totalPages,
                   source: "slack",
                 }),
-                disabled: currentPage === totalPages,
+                style: currentPage === totalPages ? "danger" : "primary",
               },
             ],
           },
@@ -327,45 +332,50 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         })
       );
 
-      messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+      const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+
+      const response = await client.chat.postMessage({
+        channel: command.channel_id,
+        text: messageText,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: messageText.substring(0, 2900),
+            },
+          },
+        ],
+        unfurl_links: false,
+        unfurl_media: false,
+      });
+
+      setTimeout(async () => {
+        try {
+          await client.chat.delete({
+            channel: command.channel_id,
+            ts: response.ts,
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }, 600000);
     } else {
       return await client.chat.postMessage({
         channel: command.channel_id,
         text: "Erm you need to specify 'slack' or 'airtable' ",
       });
     }
-
-    const response = await client.chat.postMessage({
-      channel: command.channel_id,
-      text: messageText,
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: messageText.substring(0, 2900),
-          },
-        },
-      ],
-      unfurl_links: false,
-      unfurl_media: false,
+  } catch (error) {
+    console.error("Error in /prevreports:", {
+      error: error.message,
+      stack: error.stack,
+      command: command,
     });
 
-    setTimeout(async () => {
-      try {
-        await client.chat.delete({
-          channel: command.channel_id,
-          ts: response.ts,
-        });
-      } catch (error) {
-        console.error(error);
-      }
-    }, 600000);
-  } catch (error) {
-    console.error(error);
     await client.chat.postMessage({
       channel: command.channel_id,
-      text: "Oopsie, eh I'll get to that!",
+      text: `Error: ${error.message}. Please try again or contact support.`,
     });
   }
 });
@@ -459,14 +469,14 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
               text: { type: "plain_text", text: "◀️" },
               action_id: "prev_page",
               value: JSON.stringify({ userId, currentPage: page, totalPages, source }),
-              disabled: page === 1,
+              style: page === 1 ? "danger" : "primary",
             },
             {
               type: "button",
               text: { type: "plain_text", text: "▶️" },
               action_id: "next_page",
               value: JSON.stringify({ userId, currentPage: page, totalPages, source }),
-              disabled: page === totalPages,
+              style: page === totalPages ? "danger" : "primary",
             },
           ],
         },

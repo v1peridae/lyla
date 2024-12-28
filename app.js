@@ -300,9 +300,9 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
 
           let reportText = `*Report from ${date}*
-- *Dealt With By:* ${dealtWithBy}
-- *What Did User Do:* ${fields["What Did User Do"]}
-- *How Was This Resolved:* ${fields["How Was This Resolved"]}
+  *Dealt With By:* ${dealtWithBy}
+  *What Did User Do:* ${fields["What Did User Do"]}
+  *How Was This Resolved:* ${fields["How Was This Resolved"]}
 <${fields["Link To Message"]}|View Message>`;
 
           return reportText;

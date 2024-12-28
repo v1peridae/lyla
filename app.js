@@ -304,7 +304,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 • *What Did User Do:* ${fields["What Did User Do"]}
 • *How Was This Resolved:* ${fields["How Was This Resolved"]}
 • *If Banned, Until:* ${fields["If Banned, Until When"] ? new Date(fields["If Banned, Until When"]).toLocaleDateString("en-GB") : "N/A"}
-• *Message Link:* ${fields["Link To Message"]}`;
+<${fields["Link To Message"]}|View Message>`;
         })
       );
 

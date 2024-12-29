@@ -220,6 +220,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       let allMessages = [...msgSearch.messages.matches];
+      allMessages = allMessages.filter((match) => {
+        const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
+        const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
+        return mentionsUser || !isThreadMessage;
+      });
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
       let currentPage = 1;
       const MAX_PAGES = 10;

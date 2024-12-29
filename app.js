@@ -327,7 +327,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
             timestamp: response.ts,
           });
         }
-      }, 60000);
+      }, 3600000);
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({

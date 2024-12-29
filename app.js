@@ -200,7 +200,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
 
     if (source.toLowerCase() === "slack") {
-      await client.chat.postMessage({
+      const initialMessage = await client.chat.postMessage({
         channel: command.channel_id,
         text: `Searching messages... (this might take a while)`,
       });
@@ -258,7 +258,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const messageBlock = await formatSlackMessagesPage(filteredMessages, currentPage, PAGE_SIZE, client);
 
-      await client.chat.postMessage({
+      const response = await client.chat.postMessage({
         channel: command.channel_id,
         text: `Slack messages mentioning ${userId}`,
         blocks: [
@@ -303,6 +303,31 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         unfurl_links: false,
         unfurl_media: false,
       });
+
+      try {
+        await client.chat.delete({
+          channel: command.channel_id,
+          ts: initialMessage.ts,
+        });
+      } catch (error) {
+        console.error("Error deleting searching message:", error);
+      }
+
+      setTimeout(async () => {
+        try {
+          await client.chat.delete({
+            channel: command.channel_id,
+            ts: response.ts,
+          });
+        } catch (error) {
+          console.error("Error deleting results message:", {
+            error: error.message,
+            stack: error.stack,
+            channel: command.channel_id,
+            timestamp: response.ts,
+          });
+        }
+      }, 60000);
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({
@@ -365,7 +390,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
 
-      const response = await client.chat.postMessage({
+      await client.chat.postMessage({
         channel: command.channel_id,
         text: messageText,
         blocks: [
@@ -380,17 +405,6 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         unfurl_links: false,
         unfurl_media: false,
       });
-
-      setTimeout(async () => {
-        try {
-          await client.chat.delete({
-            channel: command.channel_id,
-            ts: response.ts,
-          });
-        } catch (error) {
-          console.error(error);
-        }
-      }, 600000);
     } else {
       return await client.chat.postMessage({
         channel: command.channel_id,

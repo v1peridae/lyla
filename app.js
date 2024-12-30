@@ -211,7 +211,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
-        page: 10,
+        page: 1, //start
       });
 
       console.log("Search pagination info:", {
@@ -228,7 +228,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
       let currentPage = 1;
-      const MAX_PAGES = 30;
+      const MAX_PAGES = 20;
 
       while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
         currentPage++;

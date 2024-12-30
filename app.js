@@ -207,7 +207,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const msgSearch = await userClient.search.messages({
         query: `in:#hq-firehouse <@${cleanUserId}>`,
-        count: 100,
+        count: 30,
         sort: "timestamp",
         sort_dir: "desc",
         page: 1, //start
@@ -220,11 +220,18 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       let allMessages = [...msgSearch.messages.matches];
-      allMessages = allMessages.filter((match) => {
-        const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
-        const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
-        return mentionsUser || !isThreadMessage;
+
+      const pg2MsgSearch = await userClient.search.messages({
+        query: `in:#hq-firehouse <@${cleanUserId}>`,
+        count: 30,
+        sort: "timestamp",
+        sort_dir: "desc",
+        page: 2,
       });
+
+      allMessages = [...allMessages, ...pg2MsgSearch.messages.matches];
+
+      allMessages = allMessages.filter((match) => match.channel.id === ALLOWED_CHANNELS[0]);
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
       let currentPage = 1;
       const MAX_PAGES = 20;

@@ -12,7 +12,7 @@ const app = new App({
 
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 
-const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 

@@ -239,7 +239,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
         currentPage++;
         const nextPageResults = await userClient.search.messages({
-          query: `<@${cleanUserId}>`,
+          query: `in:#hq-firehouse <@${cleanUserId}>`,
           count: 100,
           sort: "timestamp",
           sort_dir: "desc",
@@ -496,21 +496,7 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
       page: page,
     });
 
-    let allMessages = [...msgSearch.messages.matches];
-
-    if (page === 1) {
-      const pg2MsgSearch = await userClient.search.messages({
-        query: `in:#hq-firehouse <@${userId}>`,
-        count: 30,
-        sort: "timestamp",
-        sort_dir: "desc",
-        page: 2,
-      });
-      allMessages = [...allMessages, ...pg2MsgSearch.messages.matches];
-    }
-
-    const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
-    filteredMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
+    const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
     const PAGE_SIZE = 5;
     const messageBlock = await formatSlackMessagesPage(filteredMessages, page, PAGE_SIZE, client);

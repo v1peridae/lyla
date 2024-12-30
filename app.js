@@ -214,7 +214,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
-        page: 50,
+        page: 5,
       });
 
       allMessages = [...msgSearch.messages.matches];

@@ -490,7 +490,7 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
   if (source === "slack") {
     const msgSearch = await userClient.search.messages({
       query: `in:#hq-firehouse <@${userId}>`,
-      count: 30,
+      count: 100,
       sort: "timestamp",
       sort_dir: "desc",
       page: page,
@@ -499,7 +499,18 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
     const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
     const PAGE_SIZE = 5;
-    const messageBlock = await formatSlackMessagesPage(filteredMessages, page, PAGE_SIZE, client);
+    const messageBlock =
+      filteredMessages.length > 0
+        ? await formatSlackMessagesPage(filteredMessages, 1, PAGE_SIZE, client)
+        : [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: "Sorry dude, no messages found on this page :(",
+              },
+            },
+          ];
 
     await client.chat.update({
       channel: body.channel.id,

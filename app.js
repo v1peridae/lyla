@@ -486,7 +486,7 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
       count: 100,
       sort: "timestamp",
       sort_dir: "desc",
-      page: 50,
+      page: 1,
     });
 
     allMessages = [...msgSearch.messages.matches];

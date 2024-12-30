@@ -489,11 +489,10 @@ app.action("next_page", async ({ ack, body, client }) => {
 async function updateMessageWithPage(body, client, userId, page, totalPages, source) {
   if (source === "slack") {
     const msgSearch = await userClient.search.messages({
-      query: `in:#hq-firehouse <@${userId}>`,
-      count: 30,
+      query: `in:#hq-firehouse <@${cleanUserId}>`,
+      count: 100,
       sort: "timestamp",
       sort_dir: "desc",
-      page: page,
     });
 
     const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));

@@ -51,7 +51,7 @@ app.event("reaction_added", async ({ event, client }) => {
 });
 
 app.event("message", async ({ event, client }) => {
-  if (event.channel !== ALLOWED_CHANNELS[0] || !event.thread_ts) return;
+  if (event.channel !== ALLOWED_CHANNELS[2] || !event.thread_ts) return;
 
   if (activeThreads.has(event.thread_ts)) {
     clearTimeout(activeThreads.get(event.thread_ts));

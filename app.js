@@ -12,7 +12,7 @@ const app = new App({
 
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 
-const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF"];
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
@@ -210,7 +210,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
-        page: 1,
+        page: 10,
       });
 
       console.log("Search pagination info:", {
@@ -227,7 +227,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
       let currentPage = 1;
-      const MAX_PAGES = 20;
+      const MAX_PAGES = 30;
 
       while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
         currentPage++;
@@ -252,7 +252,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
-      const PAGE_SIZE = 10;
+      const PAGE_SIZE = 5;
       const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
       currentPage = 1;
 

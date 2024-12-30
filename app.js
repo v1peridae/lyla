@@ -206,7 +206,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       const msgSearch = await userClient.search.messages({
-        query: `in:hq-firehouse <@${cleanUserId}>`,
+        query: `in:#hq-firehouse <@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",

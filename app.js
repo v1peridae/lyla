@@ -239,7 +239,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
         currentPage++;
         const nextPageResults = await userClient.search.messages({
-          query: `in:#hq-firehouse <@${cleanUserId}>`,
+          query: `<@${cleanUserId}>`,
           count: 100,
           sort: "timestamp",
           sort_dir: "desc",
@@ -489,7 +489,7 @@ app.action("next_page", async ({ ack, body, client }) => {
 async function updateMessageWithPage(body, client, userId, page, totalPages, source) {
   if (source === "slack") {
     const msgSearch = await userClient.search.messages({
-      query: `in:#hq-firehouse <@${cleanUserId}>`,
+      query: `<@${userId}>`,
       count: 100,
       sort: "timestamp",
       sort_dir: "desc",

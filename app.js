@@ -16,9 +16,6 @@ const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
-const REMINDER_TIME = 30000;
-let activeThreads = new Map();
-
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
@@ -48,52 +45,6 @@ app.event("reaction_added", async ({ event, client }) => {
   } catch (error) {
     console.error(error);
   }
-});
-
-app.event("message", async ({ event, client }) => {
-  if (event.channel !== ALLOWED_CHANNELS[2] || !event.thread_ts) return;
-
-  if (activeThreads.has(event.thread_ts)) {
-    clearTimeout(activeThreads.get(event.thread_ts));
-  }
-
-  const timerId = setTimeout(async () => {
-    try {
-      await client.chat.postMessage({
-        channel: event.channel,
-        thread_ts: event.thread_ts,
-        text: "Would you like to file a conduct report for this?",
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: "*Would you like to file a conduct report for this?*" },
-          },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { type: "plain_text", text: "Yes, I forgor lol", emoji: true },
-                action_id: "open_conduct_modal",
-                style: "primary",
-              },
-              {
-                type: "button",
-                text: { type: "plain_text", text: "No, not yet!", emoji: true },
-                action_id: "dismiss_reminder",
-                style: "danger",
-              },
-            ],
-          },
-        ],
-      });
-      activeThreads.delete(event.thread_ts);
-    } catch (error) {
-      console.error("Error sending reminder,", error);
-    }
-  }, REMINDER_TIME);
-
-  activeThreads.set(event.thread_ts, timerId);
 });
 
 const modalBlocks = [
@@ -578,18 +529,6 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
     });
   }
 }
-
-app.action("dismiss_reminder", async ({ ack, body, client }) => {
-  await ack();
-  try {
-    await client.chat.delete({
-      channel: body.channel.id,
-      ts: body.message.ts,
-    });
-  } catch (error) {
-    console.error("Error dismissing reminder:", error);
-  }
-});
 
 (async () => {
   await app.start();

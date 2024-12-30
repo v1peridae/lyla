@@ -205,9 +205,8 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         text: `Searching messages... (this might take a while)`,
       });
 
-      const channelQuery = ALLOWED_CHANNELS.map((id) => `in:${id}`).join(" OR ");
       const msgSearch = await userClient.search.messages({
-        query: `(${channelQuery}) <@${cleanUserId}>`,
+        query: `in:hq-firehouse <@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",

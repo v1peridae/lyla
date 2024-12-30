@@ -205,19 +205,29 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         text: `Searching messages... (this might take a while)`,
       });
 
-      let allMessages = [];
-      let currentPage = 1;
-      const MAX_PAGES = 30;
-
       const msgSearch = await userClient.search.messages({
         query: `<@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
-        page: 5,
+        page: 10,
       });
 
-      allMessages = [...msgSearch.messages.matches];
+      console.log("Search pagination info:", {
+        page: msgSearch.messages.paging.page,
+        pages: msgSearch.messages.paging.pages,
+        total: msgSearch.messages.paging.total,
+      });
+
+      let allMessages = [...msgSearch.messages.matches];
+      allMessages = allMessages.filter((match) => {
+        const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
+        const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
+        return mentionsUser || !isThreadMessage;
+      });
+      allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
+      let currentPage = 1;
+      const MAX_PAGES = 30;
 
       while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
         currentPage++;
@@ -231,22 +241,16 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         allMessages = [...allMessages, ...nextPageResults.messages.matches];
       }
 
-      const filteredMessages = allMessages
-        .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
-        .sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
+      console.log("Total messages collected:", allMessages.length);
 
-      console.log("Search pagination info:", {
-        page: msgSearch.messages.paging.page,
-        pages: msgSearch.messages.paging.pages,
-        total: msgSearch.messages.paging.total,
-      });
-
-      if (!filteredMessages.length) {
+      if (!allMessages.length) {
         return await client.chat.postMessage({
           channel: command.channel_id,
           text: `No previous messages mentioning ${userId} found in Slack :(`,
         });
       }
+
+      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
       const PAGE_SIZE = 5;
       const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
@@ -477,35 +481,14 @@ app.action("next_page", async ({ ack, body, client }) => {
 
 async function updateMessageWithPage(body, client, userId, page, totalPages, source) {
   if (source === "slack") {
-    let allMessages = [];
-    let currentPage = 1;
-    const MAX_PAGES = 30;
-
     const msgSearch = await userClient.search.messages({
       query: `<@${userId}>`,
       count: 100,
       sort: "timestamp",
       sort_dir: "desc",
-      page: 1,
     });
 
-    allMessages = [...msgSearch.messages.matches];
-
-    while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
-      currentPage++;
-      const nextPageResults = await userClient.search.messages({
-        query: `<@${userId}>`,
-        count: 100,
-        sort: "timestamp",
-        sort_dir: "desc",
-        page: currentPage,
-      });
-      allMessages = [...allMessages, ...nextPageResults.messages.matches];
-    }
-
-    const filteredMessages = allMessages
-      .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
-      .sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
+    const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
     const PAGE_SIZE = 5;
     const messageBlock = await formatSlackMessagesPage(filteredMessages, page, PAGE_SIZE, client);

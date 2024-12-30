@@ -16,7 +16,7 @@ const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
-const REMINDER_TIME = 300000;
+const REMINDER_TIME = 30000;
 let activeThreads = new Map();
 
 app.event("reaction_added", async ({ event, client }) => {

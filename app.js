@@ -207,7 +207,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const msgSearch = await userClient.search.messages({
         query: `in:#hq-firehouse <@${cleanUserId}>`,
-        count: 30,
+        count: 100,
         sort: "timestamp",
         sort_dir: "desc",
         page: 1, //start
@@ -220,18 +220,11 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       let allMessages = [...msgSearch.messages.matches];
-
-      const pg2MsgSearch = await userClient.search.messages({
-        query: `in:#hq-firehouse <@${cleanUserId}>`,
-        count: 30,
-        sort: "timestamp",
-        sort_dir: "desc",
-        page: 2,
+      allMessages = allMessages.filter((match) => {
+        const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
+        const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
+        return mentionsUser || !isThreadMessage;
       });
-
-      allMessages = [...allMessages, ...pg2MsgSearch.messages.matches];
-
-      allMessages = allMessages.filter((match) => match.channel.id === ALLOWED_CHANNELS[0]);
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
       let currentPage = 1;
       const MAX_PAGES = 20;
@@ -239,7 +232,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
         currentPage++;
         const nextPageResults = await userClient.search.messages({
-          query: `in:#hq-firehouse <@${cleanUserId}>`,
+          query: `<@${cleanUserId}>`,
           count: 100,
           sort: "timestamp",
           sort_dir: "desc",
@@ -489,28 +482,16 @@ app.action("next_page", async ({ ack, body, client }) => {
 async function updateMessageWithPage(body, client, userId, page, totalPages, source) {
   if (source === "slack") {
     const msgSearch = await userClient.search.messages({
-      query: `in:#hq-firehouse <@${userId}>`,
+      query: `<@${userId}>`,
       count: 100,
       sort: "timestamp",
       sort_dir: "desc",
-      page: page,
     });
 
     const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
 
     const PAGE_SIZE = 5;
-    const messageBlock =
-      filteredMessages.length > 0
-        ? await formatSlackMessagesPage(filteredMessages, 1, PAGE_SIZE, client)
-        : [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: "Sorry dude, no messages found on this page :(",
-              },
-            },
-          ];
+    const messageBlock = await formatSlackMessagesPage(filteredMessages, page, PAGE_SIZE, client);
 
     await client.chat.update({
       channel: body.channel.id,

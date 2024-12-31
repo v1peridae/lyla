@@ -276,7 +276,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         query: `in:#hq-firehouse <@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
-        sort_dir: "desc",
+        sort_dir: "asc",
       });
 
       let allMessages = [...msgSearch.messages.matches];
@@ -287,7 +287,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
+      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 30);
 
       if (!filteredMessages.length) {
         return await client.chat.postMessage({

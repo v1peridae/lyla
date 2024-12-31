@@ -462,19 +462,43 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, que
     (match) => ALLOWED_CHANNELS.includes(match.channel.id) && (!match.thread_ts || match.thread_ts === match.ts)
   );
 
-  const PAGE_SIZE = 5;
-  const messageBlock =
-    filteredMessages.length > 0
-      ? await formatMessagesPage(filteredMessages, 1, PAGE_SIZE, client)
-      : [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "No messages found on this page.",
-            },
+  if (!filteredMessages.length) {
+    return await client.chat.update({
+      channel: body.channel.id,
+      ts: body.message.ts,
+      text: `Slack messages mentioning <@${userId}>`,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `Slack messages mentioning <@${userId}> (Page ${page - 1}/${page - 1}):`,
           },
-        ];
+        },
+        ...(await formatMessagesPage([], 1, PAGE_SIZE, client)),
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "◀️" },
+              action_id: "prev_page",
+              value: JSON.stringify({
+                u: userId,
+                p: page - 1,
+                t: page - 1,
+                q: query,
+              }),
+              style: "danger",
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const PAGE_SIZE = 5;
+  const messageBlock = await formatMessagesPage(filteredMessages, 1, PAGE_SIZE, client);
 
   await client.chat.update({
     channel: body.channel.id,

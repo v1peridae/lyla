@@ -193,115 +193,13 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     if (!userId || !source) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: "Use the format: `/prevreports @user slack|airtable`",
+        text: "Use the format: `/prevreports @user airtable`",
       });
     }
 
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
 
-    if (source.toLowerCase() === "slack") {
-      const initialMessage = await client.chat.postMessage({
-        channel: command.channel_id,
-        text: `Searching messages... (this might take a while)`,
-      });
-
-      const searchResults = await userClient.search.messages({
-        query: `in:#hq-firehouse <@${cleanUserId}>`,
-        count: 100,
-        sort: "timestamp",
-        sort_dir: "desc",
-      });
-
-      let filteredMessages = searchResults.messages.matches.filter(
-        (msg) => ALLOWED_CHANNELS.includes(msg.channel.id) && (!msg.thread_ts || msg.thread_ts === msg.ts)
-      );
-
-      if (!filteredMessages.length) {
-        await client.chat.delete({
-          channel: command.channel_id,
-          ts: initialMessage.ts,
-        });
-
-        return await client.chat.postMessage({
-          channel: command.channel_id,
-          text: `No previous messages mentioning ${userId} found in Slack :(`,
-        });
-      }
-
-      filteredMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-
-      const PAGE_SIZE = 5;
-      const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
-      const currentPage = 1;
-
-      const messageBlocks = await formatMessagesPage(filteredMessages, currentPage, PAGE_SIZE, client);
-
-      const response = await client.chat.postMessage({
-        channel: command.channel_id,
-        text: `Slack messages mentioning ${userId}`,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `Slack messages mentioning ${userId} (Page ${currentPage}/${totalPages}):`,
-            },
-          },
-          ...messageBlocks,
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { type: "plain_text", text: "◀️" },
-                action_id: "prev_page",
-                value: JSON.stringify({
-                  u: cleanUserId,
-                  p: currentPage,
-                  t: totalPages,
-                  q: `in:#hq-firehouse <@${cleanUserId}>`,
-                }),
-                style: "danger",
-              },
-              {
-                type: "button",
-                text: { type: "plain_text", text: "▶️" },
-                action_id: "next_page",
-                value: JSON.stringify({
-                  u: cleanUserId,
-                  p: currentPage,
-                  t: totalPages,
-                  q: `in:#hq-firehouse <@${cleanUserId}>`,
-                }),
-                style: currentPage === totalPages ? "danger" : "primary",
-              },
-            ],
-          },
-        ],
-        unfurl_links: false,
-        unfurl_media: false,
-      });
-
-      try {
-        await client.chat.delete({
-          channel: command.channel_id,
-          ts: initialMessage.ts,
-        });
-      } catch (error) {
-        console.error("Error deleting loading message:", error);
-      }
-
-      setTimeout(async () => {
-        try {
-          await client.chat.delete({
-            channel: command.channel_id,
-            ts: response.ts,
-          });
-        } catch (error) {
-          console.error("Error deleting results message:", error);
-        }
-      }, 3600000);
-    } else if (source.toLowerCase() === "airtable") {
+    if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({
           filterByFormula: `{User Being Dealt With} = '${cleanUserId}'`,
@@ -381,7 +279,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     } else {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: "Erm you need to specify 'slack' or 'airtable' ",
+        text: "Please use the format: `/prevreports @user airtable`",
       });
     }
   } catch (error) {

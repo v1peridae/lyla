@@ -286,9 +286,8 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         return mentionsUser || !isThreadMessage;
       });
 
-      // Sort by timestamp and take only the 10 most recent messages
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 10);
+      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
 
       if (!filteredMessages.length) {
         return await client.chat.postMessage({

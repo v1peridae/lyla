@@ -16,37 +16,16 @@ const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
-const INACTIVITY_CHECK_DELAY = 1 * 60 * 1000;
+const INACTIVITY_CHECK_DELAY = 2 * 60 * 1000;
 const activeThreads = new Map();
 
-const HQ_CHANNEL = "C07UBURESHZ";
-
-const DEBUG = true;
-
 async function checkThreadActivity(threadTs, channelId, client) {
-  console.log(`[${new Date().toISOString()}] Setting timer for thread:`, {
-    threadTs,
-    channelId,
-    delay: `${INACTIVITY_CHECK_DELAY / 1000} seconds`,
-  });
-
   setTimeout(async () => {
     try {
-      console.log(`[${new Date().toISOString()}] Timer triggered for thread:`, {
-        threadTs,
-        channelId,
-      });
-
       const replies = await client.conversations.replies({
         channel: channelId,
         ts: threadTs,
         limit: 100,
-      });
-
-      console.log("Thread details:", {
-        messageCount: replies.messages.length,
-        firstMessage: replies.messages[0]?.text,
-        lastMessage: replies.messages[replies.messages.length - 1]?.text,
       });
 
       const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
@@ -56,11 +35,7 @@ async function checkThreadActivity(threadTs, channelId, client) {
         const lastMessageTime = new Date(lastMessageTs * 1000);
         const now = new Date();
 
-        console.log("Time since last message (ms):", now - lastMessageTime);
-        console.log("Inactivity threshold (ms):", INACTIVITY_CHECK_DELAY);
-
         if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
-          console.log("Sending inactivity check message");
           await client.chat.postMessage({
             channel: channelId,
             thread_ts: threadTs,
@@ -99,7 +74,6 @@ async function checkThreadActivity(threadTs, channelId, client) {
       activeThreads.delete(threadTs);
     } catch (error) {
       console.error("Error checking thread activity:", error);
-      console.error(error);
     }
   }, INACTIVITY_CHECK_DELAY);
 }
@@ -131,7 +105,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
 
-    if (!activeThreads.has(event.item.ts) && event.item.channel !== HQ_CHANNEL) {
+    if (!activeThreads.has(event.item.ts)) {
       activeThreads.set(event.item.ts, true);
       checkThreadActivity(event.item.ts, event.item.channel, client);
     }
@@ -649,61 +623,6 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
     });
   } catch (error) {
     console.error("Error resetting thread timer:", error);
-  }
-});
-
-app.message(async ({ message, client }) => {
-  if (DEBUG) {
-    console.log("Message received:", {
-      channel: message.channel,
-      isHQChannel: message.channel === HQ_CHANNEL,
-      ts: message.ts,
-      thread_ts: message.thread_ts,
-      subtype: message.subtype,
-      text: message.text,
-    });
-  }
-
-  if (message.channel !== HQ_CHANNEL) {
-    if (DEBUG) console.log("Skipping - wrong channel");
-    return;
-  }
-
-  try {
-    if (!message.thread_ts && !message.subtype) {
-      if (DEBUG) console.log("New thread detected");
-
-      if (!activeThreads.has(message.ts)) {
-        console.log("Starting to track new thread:", {
-          ts: message.ts,
-          channel: message.channel,
-          text: message.text,
-        });
-
-        activeThreads.set(message.ts, true);
-        checkThreadActivity(message.ts, message.channel, client);
-      } else {
-        if (DEBUG) console.log("Thread already being tracked:", message.ts);
-      }
-    } else if (message.thread_ts && !message.subtype) {
-      if (DEBUG) console.log("Thread reply detected");
-
-      const threadTs = message.thread_ts;
-      if (!activeThreads.has(threadTs)) {
-        console.log("Starting to track thread from reply:", {
-          threadTs,
-          channel: message.channel,
-          text: message.text,
-        });
-
-        activeThreads.set(threadTs, true);
-        checkThreadActivity(threadTs, message.channel, client);
-      } else {
-        if (DEBUG) console.log("Thread already being tracked:", threadTs);
-      }
-    }
-  } catch (error) {
-    console.error("Error in message handler:", error);
   }
 });
 

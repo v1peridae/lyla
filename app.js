@@ -253,8 +253,15 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   }
 });
 
-app.command("/prevreports", async ({ command, ack, client }) => {
+app.command("/prevreports", async ({ command, ack, client, respond }) => {
   await ack();
+  if(!ALLOWED_CHANNELS.includes(command.channel_id)) {
+  respond({
+text: `You are not in the correct channel for this :P`,
+  response_type: 'ephemeral',
+})
+    return;
+}
   try {
     const [userId, source] = command.text.trim().split(" ");
     if (!userId || !source) {

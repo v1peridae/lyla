@@ -19,6 +19,8 @@ const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env
 const INACTIVITY_CHECK_DELAY = 2 * 60 * 1000;
 const activeThreads = new Map();
 
+const HQ_CHANNEL = "C07UBURESHZ";
+
 async function checkThreadActivity(threadTs, channelId, client) {
   setTimeout(async () => {
     try {
@@ -105,7 +107,7 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
 
-    if (!activeThreads.has(event.item.ts)) {
+    if (!activeThreads.has(event.item.ts) && event.item.channel !== HQ_CHANNEL) {
       activeThreads.set(event.item.ts, true);
       checkThreadActivity(event.item.ts, event.item.channel, client);
     }
@@ -623,6 +625,19 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
     });
   } catch (error) {
     console.error("Error resetting thread timer:", error);
+  }
+});
+
+app.message(async ({ message, client }) => {
+  if (message.channel !== HQ_CHANNEL || message.thread_ts || message.subtype) return;
+
+  try {
+    if (!activeThreads.has(message.ts)) {
+      activeThreads.set(message.ts, true);
+      checkThreadActivity(message.ts, message.channel, client);
+    }
+  } catch (error) {
+    console.error("Error tracking new thread:", error);
   }
 });
 

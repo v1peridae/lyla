@@ -205,58 +205,36 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         text: `Searching messages... (this might take a while)`,
       });
 
-      const msgSearch = await userClient.search.messages({
+      const searchResults = await userClient.search.messages({
         query: `in:#hq-firehouse <@${cleanUserId}>`,
         count: 100,
         sort: "timestamp",
         sort_dir: "desc",
-        page: 1, //start
       });
 
-      console.log("Search pagination info:", {
-        page: msgSearch.messages.paging.page,
-        pages: msgSearch.messages.paging.pages,
-        total: msgSearch.messages.paging.total,
-      });
+      let filteredMessages = searchResults.messages.matches.filter(
+        (msg) => ALLOWED_CHANNELS.includes(msg.channel.id) && (!msg.thread_ts || msg.thread_ts === msg.ts)
+      );
 
-      let allMessages = [...msgSearch.messages.matches];
-      allMessages = allMessages.filter((match) => {
-        const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
-        const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
-        return mentionsUser || !isThreadMessage;
-      });
-      allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-      let currentPage = 1;
-      const MAX_PAGES = 20;
-
-      while (currentPage < msgSearch.messages.paging.pages && currentPage < MAX_PAGES) {
-        currentPage++;
-        const nextPageResults = await userClient.search.messages({
-          query: `<@${cleanUserId}>`,
-          count: 100,
-          sort: "timestamp",
-          sort_dir: "desc",
-          page: currentPage,
+      if (!filteredMessages.length) {
+        await client.chat.delete({
+          channel: command.channel_id,
+          ts: initialMessage.ts,
         });
-        allMessages = [...allMessages, ...nextPageResults.messages.matches];
-      }
 
-      console.log("Total messages collected:", allMessages.length);
-
-      if (!allMessages.length) {
         return await client.chat.postMessage({
           channel: command.channel_id,
           text: `No previous messages mentioning ${userId} found in Slack :(`,
         });
       }
 
-      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
+      filteredMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
 
       const PAGE_SIZE = 5;
       const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
-      currentPage = 1;
+      const currentPage = 1;
 
-      const messageBlock = await formatSlackMessagesPage(filteredMessages, currentPage, PAGE_SIZE, client);
+      const messageBlocks = await formatMessagesPage(filteredMessages, currentPage, PAGE_SIZE, client);
 
       const response = await client.chat.postMessage({
         channel: command.channel_id,
@@ -269,7 +247,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
               text: `Slack messages mentioning ${userId} (Page ${currentPage}/${totalPages}):`,
             },
           },
-          ...messageBlock,
+          ...messageBlocks,
           {
             type: "actions",
             elements: [
@@ -282,18 +260,28 @@ app.command("/prevreports", async ({ command, ack, client }) => {
                   currentPage,
                   totalPages,
                   source: "slack",
+                  messages: filteredMessages.map((m) => ({
+                    ts: m.ts,
+                    text: m.text,
+                    channel: m.channel.id,
+                  })),
                 }),
-                style: currentPage === 1 ? "danger" : "primary",
+                style: "danger",
               },
               {
                 type: "button",
-                text: { type: "plain_text", text: " ▶️" },
+                text: { type: "plain_text", text: "▶️" },
                 action_id: "next_page",
                 value: JSON.stringify({
                   userId: cleanUserId,
                   currentPage,
                   totalPages,
                   source: "slack",
+                  messages: filteredMessages.map((m) => ({
+                    ts: m.ts,
+                    text: m.text,
+                    channel: m.channel.id,
+                  })),
                 }),
                 style: currentPage === totalPages ? "danger" : "primary",
               },
@@ -310,7 +298,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
           ts: initialMessage.ts,
         });
       } catch (error) {
-        console.error("Error deleting searching message:", error);
+        console.error("Error deleting loading message:", error);
       }
 
       setTimeout(async () => {
@@ -320,12 +308,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
             ts: response.ts,
           });
         } catch (error) {
-          console.error("Error deleting results message:", {
-            error: error.message,
-            stack: error.stack,
-            channel: command.channel_id,
-            timestamp: response.ts,
-          });
+          console.error("Error deleting results message:", error);
         }
       }, 3600000);
     } else if (source.toLowerCase() === "airtable") {
@@ -412,12 +395,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
     }
   } catch (error) {
-    console.error("Error in /prevreports:", {
-      error: error.message,
-      stack: error.stack,
-      command: command,
-    });
-
+    console.error("Error in /prevreports:", error);
     await client.chat.postMessage({
       channel: command.channel_id,
       text: `Error: ${error.message}. Please try again or contact support.`,
@@ -425,19 +403,19 @@ app.command("/prevreports", async ({ command, ack, client }) => {
   }
 });
 
-async function formatSlackMessagesPage(messages, page, pageSize, client) {
+async function formatMessagesPage(messages, page, pageSize, client) {
   const start = (page - 1) * pageSize;
-  const end = start + pageSize;
+  const end = Math.min(start + pageSize, messages.length);
   const pageMessages = messages.slice(start, end);
 
   const formattedMessages = await Promise.all(
-    pageMessages.map(async (match) => {
+    pageMessages.map(async (message) => {
       const permalinkResp = await client.chat.getPermalink({
-        channel: match.channel.id,
-        message_ts: match.ts,
+        channel: message.channel.id,
+        message_ts: message.ts,
       });
 
-      const messageDate = new Date(parseFloat(match.ts) * 1000);
+      const messageDate = new Date(parseFloat(message.ts) * 1000);
       const formattedDate = messageDate.toLocaleDateString("en-GB", {
         day: "numeric",
         month: "short",
@@ -450,7 +428,7 @@ async function formatSlackMessagesPage(messages, page, pageSize, client) {
       });
       const timestamp = `${formattedDate} at ${formattedTime}`;
 
-      const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+      const shortenedText = message.text.length > 200 ? message.text.substring(0, 200) + "..." : message.text;
 
       return {
         type: "section",
@@ -467,31 +445,21 @@ async function formatSlackMessagesPage(messages, page, pageSize, client) {
 
 app.action("prev_page", async ({ ack, body, client }) => {
   await ack();
-  const { userId, currentPage, totalPages, source } = JSON.parse(body.actions[0].value);
+  const { userId, currentPage, totalPages, source, messages } = JSON.parse(body.actions[0].value);
   const newPage = Math.max(1, currentPage - 1);
-  await updateMessageWithPage(body, client, userId, newPage, totalPages, source);
+  await updateMessageWithPage(body, client, userId, newPage, totalPages, source, messages);
 });
 
 app.action("next_page", async ({ ack, body, client }) => {
   await ack();
-  const { userId, currentPage, totalPages, source } = JSON.parse(body.actions[0].value);
+  const { userId, currentPage, totalPages, source, messages } = JSON.parse(body.actions[0].value);
   const newPage = Math.min(totalPages, currentPage + 1);
-  await updateMessageWithPage(body, client, userId, newPage, totalPages, source);
+  await updateMessageWithPage(body, client, userId, newPage, totalPages, source, messages);
 });
 
-async function updateMessageWithPage(body, client, userId, page, totalPages, source) {
+async function updateMessageWithPage(body, client, userId, page, totalPages, source, messages) {
   if (source === "slack") {
-    const msgSearch = await userClient.search.messages({
-      query: `<@${userId}>`,
-      count: 100,
-      sort: "timestamp",
-      sort_dir: "desc",
-    });
-
-    const filteredMessages = msgSearch.messages.matches.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id));
-
-    const PAGE_SIZE = 5;
-    const messageBlock = await formatSlackMessagesPage(filteredMessages, page, PAGE_SIZE, client);
+    const messageBlocks = await formatMessagesPage(messages, page, 5, client);
 
     await client.chat.update({
       channel: body.channel.id,
@@ -505,7 +473,7 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
             text: `Slack messages mentioning <@${userId}> (Page ${page}/${totalPages}):`,
           },
         },
-        ...messageBlock,
+        ...messageBlocks,
         {
           type: "actions",
           elements: [
@@ -513,14 +481,14 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
               type: "button",
               text: { type: "plain_text", text: "◀️" },
               action_id: "prev_page",
-              value: JSON.stringify({ userId, currentPage: page, totalPages, source }),
+              value: JSON.stringify({ userId, currentPage: page, totalPages, source, messages }),
               style: page === 1 ? "danger" : "primary",
             },
             {
               type: "button",
               text: { type: "plain_text", text: "▶️" },
               action_id: "next_page",
-              value: JSON.stringify({ userId, currentPage: page, totalPages, source }),
+              value: JSON.stringify({ userId, currentPage: page, totalPages, source, messages }),
               style: page === totalPages ? "danger" : "primary",
             },
           ],

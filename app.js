@@ -256,15 +256,10 @@ app.command("/prevreports", async ({ command, ack, client }) => {
                 text: { type: "plain_text", text: "◀️" },
                 action_id: "prev_page",
                 value: JSON.stringify({
-                  userId: cleanUserId,
-                  currentPage,
-                  totalPages,
-                  source: "slack",
-                  messages: filteredMessages.map((m) => ({
-                    ts: m.ts,
-                    text: m.text,
-                    channel: m.channel.id,
-                  })),
+                  u: cleanUserId,
+                  p: currentPage,
+                  t: totalPages,
+                  q: `in:#hq-firehouse <@${cleanUserId}>`,
                 }),
                 style: "danger",
               },
@@ -273,15 +268,10 @@ app.command("/prevreports", async ({ command, ack, client }) => {
                 text: { type: "plain_text", text: "▶️" },
                 action_id: "next_page",
                 value: JSON.stringify({
-                  userId: cleanUserId,
-                  currentPage,
-                  totalPages,
-                  source: "slack",
-                  messages: filteredMessages.map((m) => ({
-                    ts: m.ts,
-                    text: m.text,
-                    channel: m.channel.id,
-                  })),
+                  u: cleanUserId,
+                  p: currentPage,
+                  t: totalPages,
+                  q: `in:#hq-firehouse <@${cleanUserId}>`,
                 }),
                 style: currentPage === totalPages ? "danger" : "primary",
               },
@@ -445,57 +435,91 @@ async function formatMessagesPage(messages, page, pageSize, client) {
 
 app.action("prev_page", async ({ ack, body, client }) => {
   await ack();
-  const { userId, currentPage, totalPages, source, messages } = JSON.parse(body.actions[0].value);
+  const { u: userId, p: currentPage, t: totalPages, q: query } = JSON.parse(body.actions[0].value);
   const newPage = Math.max(1, currentPage - 1);
-  await updateMessageWithPage(body, client, userId, newPage, totalPages, source, messages);
+  await updateMessageWithPage(body, client, userId, newPage, totalPages, query);
 });
 
 app.action("next_page", async ({ ack, body, client }) => {
   await ack();
-  const { userId, currentPage, totalPages, source, messages } = JSON.parse(body.actions[0].value);
+  const { u: userId, p: currentPage, t: totalPages, q: query } = JSON.parse(body.actions[0].value);
   const newPage = Math.min(totalPages, currentPage + 1);
-  await updateMessageWithPage(body, client, userId, newPage, totalPages, source, messages);
+  await updateMessageWithPage(body, client, userId, newPage, totalPages, query);
 });
 
-async function updateMessageWithPage(body, client, userId, page, totalPages, source, messages) {
-  if (source === "slack") {
-    const messageBlocks = await formatMessagesPage(messages, page, 5, client);
+async function updateMessageWithPage(body, client, userId, page, totalPages, query) {
+  if (!query) return;
 
-    await client.chat.update({
-      channel: body.channel.id,
-      ts: body.message.ts,
-      text: `Slack messages mentioning <@${userId}>`,
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `Slack messages mentioning <@${userId}> (Page ${page}/${totalPages}):`,
+  const msgSearch = await userClient.search.messages({
+    query,
+    count: 100,
+    sort: "timestamp",
+    sort_dir: "desc",
+    page,
+  });
+
+  const filteredMessages = msgSearch.messages.matches.filter(
+    (match) => ALLOWED_CHANNELS.includes(match.channel.id) && (!match.thread_ts || match.thread_ts === match.ts)
+  );
+
+  const PAGE_SIZE = 5;
+  const messageBlock =
+    filteredMessages.length > 0
+      ? await formatMessagesPage(filteredMessages, 1, PAGE_SIZE, client)
+      : [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "No messages found on this page.",
+            },
           },
+        ];
+
+  await client.chat.update({
+    channel: body.channel.id,
+    ts: body.message.ts,
+    text: `Slack messages mentioning <@${userId}>`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `Slack messages mentioning <@${userId}> (Page ${page}/${totalPages}):`,
         },
-        ...messageBlocks,
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "◀️" },
-              action_id: "prev_page",
-              value: JSON.stringify({ userId, currentPage: page, totalPages, source, messages }),
-              style: page === 1 ? "danger" : "primary",
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "▶️" },
-              action_id: "next_page",
-              value: JSON.stringify({ userId, currentPage: page, totalPages, source, messages }),
-              style: page === totalPages ? "danger" : "primary",
-            },
-          ],
-        },
-      ],
-    });
-  }
+      },
+      ...messageBlock,
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "◀️" },
+            action_id: "prev_page",
+            value: JSON.stringify({
+              u: userId,
+              p: page,
+              t: totalPages,
+              q: query,
+            }),
+            style: page === 1 ? "danger" : "primary",
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "▶️" },
+            action_id: "next_page",
+            value: JSON.stringify({
+              u: userId,
+              p: page,
+              t: totalPages,
+              q: query,
+            }),
+            style: page === totalPages ? "danger" : "primary",
+          },
+        ],
+      },
+    ],
+  });
 }
 
 (async () => {

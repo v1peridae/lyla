@@ -5,6 +5,7 @@
   "main": "app.js",
   "dependencies": {
     "@slack/bolt": "^3.17.0",
+    "airtable": "^0.12.2",
     "dotenv": "^16.0.0"
   },
   "scripts": {

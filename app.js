@@ -16,6 +16,8 @@ const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
+const PAGE_SIZE = 5;
+
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
@@ -193,7 +195,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
     if (!userId || !source) {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: "Use the format: `/prevreports @user airtable`",
+        text: "Use the format: `/prevreports @user [airtable|slack]`",
       });
     }
 
@@ -276,10 +278,79 @@ app.command("/prevreports", async ({ command, ack, client }) => {
         unfurl_links: false,
         unfurl_media: false,
       });
+    } else if (source.toLowerCase() === "slack") {
+      const query = `<@${cleanUserId}> in:${ALLOWED_CHANNELS.join(",")}`;
+
+      const msgSearch = await userClient.search.messages({
+        query,
+        count: 100,
+        sort: "timestamp",
+        sort_dir: "desc",
+      });
+
+      const filteredMessages = msgSearch.messages.matches.filter(
+        (match) => ALLOWED_CHANNELS.includes(match.channel.id) && (!match.thread_ts || match.thread_ts === match.ts)
+      );
+
+      if (!filteredMessages.length) {
+        return await client.chat.postMessage({
+          channel: command.channel_id,
+          text: `No messages found mentioning ${userId} in the moderation channels.`,
+        });
+      }
+
+      const totalPages = Math.ceil(filteredMessages.length / PAGE_SIZE);
+      const messageBlock = await formatMessagesPage(filteredMessages, 1, PAGE_SIZE, client);
+
+      await client.chat.postMessage({
+        channel: command.channel_id,
+        text: `Slack messages mentioning ${userId}`,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `Slack messages mentioning ${userId} (Page 1/${totalPages}):`,
+            },
+          },
+          ...messageBlock,
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: { type: "plain_text", text: "◀️" },
+                action_id: "prev_page",
+                value: JSON.stringify({
+                  u: cleanUserId,
+                  p: 1,
+                  t: totalPages,
+                  q: query,
+                }),
+                style: "danger",
+              },
+              {
+                type: "button",
+                text: { type: "plain_text", text: "▶️" },
+                action_id: "next_page",
+                value: JSON.stringify({
+                  u: cleanUserId,
+                  p: 1,
+                  t: totalPages,
+                  q: query,
+                }),
+                style: totalPages === 1 ? "danger" : "primary",
+              },
+            ],
+          },
+        ],
+        unfurl_links: false,
+        unfurl_media: false,
+      });
     } else {
       return await client.chat.postMessage({
         channel: command.channel_id,
-        text: "Please use the format: `/prevreports @user airtable`",
+        text: "Please use the format: `/prevreports @user [airtable|slack]`",
       });
     }
   } catch (error) {

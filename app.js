@@ -16,6 +16,68 @@ const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
+const INACTIVITY_CHECK_DELAY = 2 * 60 * 1000;
+const activeThreads = new Map();
+
+async function checkThreadActivity(threadTs, channelId, client) {
+  setTimeout(async () => {
+    try {
+      const replies = await client.conversations.replies({
+        channel: channelId,
+        ts: threadTs,
+        limit: 100,
+      });
+
+      const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
+
+      if (!hasFormSubmission) {
+        const lastMessageTs = replies.messages[replies.messages.length - 1].ts;
+        const lastMessageTime = new Date(lastMessageTs * 1000);
+        const now = new Date();
+
+        if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
+          await client.chat.postMessage({
+            channel: channelId,
+            thread_ts: threadTs,
+            text: "Hey! Has this been resolved?",
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: "Hey! Has this been resolved? If so, please submit a conduct report to help us keep track.",
+                },
+              },
+              {
+                type: "actions",
+                elements: [
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "No, still ongoing", emoji: true },
+                    action_id: "reset_thread_timer",
+                    value: JSON.stringify({ threadTs, channelId }),
+                    style: "danger",
+                  },
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "Submit Report", emoji: true },
+                    action_id: "open_conduct_modal",
+                    style: "primary",
+                  },
+                ],
+              },
+            ],
+          });
+        }
+      }
+
+      activeThreads.delete(threadTs);
+    } catch (error) {
+      console.error("Error checking thread activity:", error);
+    }
+  }, INACTIVITY_CHECK_DELAY);
+}
+
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
@@ -42,6 +104,11 @@ app.event("reaction_added", async ({ event, client }) => {
         },
       ],
     });
+
+    if (!activeThreads.has(event.item.ts)) {
+      activeThreads.set(event.item.ts, true);
+      checkThreadActivity(event.item.ts, event.item.channel, client);
+    }
   } catch (error) {
     console.error(error);
   }
@@ -529,6 +596,35 @@ async function updateMessageWithPage(body, client, userId, page, totalPages, sou
     });
   }
 }
+
+app.action("reset_thread_timer", async ({ ack, body, client }) => {
+  await ack();
+  try {
+    const { threadTs, channelId } = JSON.parse(body.actions[0].value);
+
+    if (!activeThreads.has(threadTs)) {
+      activeThreads.set(threadTs, true);
+      checkThreadActivity(threadTs, channelId, client);
+    }
+
+    await client.chat.update({
+      channel: body.channel.id,
+      ts: body.message.ts,
+      text: "Timer reset - we'll check back in a few minutes!",
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "Timer reset - we'll check back in a few minutes!",
+          },
+        },
+      ],
+    });
+  } catch (error) {
+    console.error("Error resetting thread timer:", error);
+  }
+});
 
 (async () => {
   await app.start();

@@ -287,7 +287,7 @@ app.command("/prevreports", async ({ command, ack, client }) => {
       });
 
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 30);
+      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
 
       if (!filteredMessages.length) {
         return await client.chat.postMessage({
@@ -331,13 +331,13 @@ app.command("/prevreports", async ({ command, ack, client }) => {
 
       const response = await client.chat.postMessage({
         channel: command.channel_id,
-        text: `10 most recent Slack messages mentioning ${userId}`,
+        text: `Most recent Slack messages mentioning ${userId}`,
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `10 most recent Slack messages mentioning ${userId}:`,
+              text: `Most recent Slack messages mentioning ${userId}:`,
             },
           },
           ...messageBlocks,

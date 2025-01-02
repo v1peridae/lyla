@@ -45,7 +45,7 @@ async function checkThreadActivity(threadTs, channelId, client) {
                 type: "section",
                 text: {
                   type: "mrkdwn",
-                  text: "Hey! Has this been resolved? If so, please submit a conduct report to help us keep track.",
+                  text: "Hey! Has this been resolved?",
                 },
               },
               {
@@ -105,10 +105,64 @@ app.event("reaction_added", async ({ event, client }) => {
       ],
     });
 
-    if (!activeThreads.has(event.item.ts)) {
-      activeThreads.set(event.item.ts, true);
-      checkThreadActivity(event.item.ts, event.item.channel, client);
-    }
+    const checkInactivity = async () => {
+      try {
+        const replies = await client.conversations.replies({
+          channel: event.item.channel,
+          ts: event.item.ts,
+          limit: 100,
+        });
+
+        const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
+
+        if (!hasFormSubmission) {
+          const lastMessageTs = replies.messages[replies.messages.length - 1].ts;
+          const lastMessageTime = new Date(lastMessageTs * 1000);
+          const now = new Date();
+
+          if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
+            await client.chat.postMessage({
+              channel: event.item.channel,
+              thread_ts: event.item.ts,
+              text: "Has this been resolved?",
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "Has this been resolved?",
+                  },
+                },
+                {
+                  type: "actions",
+                  elements: [
+                    {
+                      type: "button",
+                      text: { type: "plain_text", text: "No, still being sorted :)", emoji: true },
+                      action_id: "reset_thread_timer",
+                      value: JSON.stringify({ threadTs: event.item.ts, channelId: event.item.channel }),
+                      style: "danger",
+                    },
+                    {
+                      type: "button",
+                      text: { type: "plain_text", text: "Add A Record", emoji: true },
+                      action_id: "open_conduct_modal",
+                      style: "primary",
+                    },
+                  ],
+                },
+              ],
+            });
+            return;
+          }
+          setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
+        }
+      } catch (error) {
+        console.error("Error checking thread activity:", error);
+      }
+    };
+
+    setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
   } catch (error) {
     console.error(error);
   }
@@ -478,13 +532,13 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
     await client.chat.update({
       channel: body.channel.id,
       ts: body.message.ts,
-      text: "Timer reset - we'll check back in a few minutes!",
+      text: "LYLA WILL BE BACK MUHEHEHHEHE",
       blocks: [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: "Timer reset - we'll check back in a few minutes!",
+            text: "I'll be back soon :P",
           },
         },
       ],

@@ -16,7 +16,7 @@ const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
-const INACTIVITY_CHECK_DELAY = 2 * 60 * 1000;
+const INACTIVITY_CHECK_DELAY = 60 * 60 * 1000;
 const activeThreads = new Map();
 
 async function checkThreadActivity(threadTs, channelId, client) {
@@ -290,7 +290,8 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
       allMessages = allMessages.filter((match) => {
         const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
         const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
-        return mentionsUser || !isThreadMessage;
+        const fromLyla = match.bot_id || match.username === "LYLA";
+        return (mentionsUser || !isThreadMessage) && !fromLyla;
       });
 
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));

@@ -290,8 +290,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
       allMessages = allMessages.filter((match) => {
         const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
         const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
-        const fromLyla = match.bot_id || match.username === "LYLA";
-        return (mentionsUser || !isThreadMessage) && !fromLyla;
+        return mentionsUser || !isThreadMessage;
       });
 
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
@@ -368,7 +367,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         } catch (error) {
           console.error("Error deleting results message:", error);
         }
-      }, 3600000);
+      }, 2 * 60 * 1000);
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({

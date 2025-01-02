@@ -367,7 +367,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         } catch (error) {
           console.error("Error deleting results message:", error);
         }
-      }, 2 * 60 * 1000);
+      }, 60 * 60 * 1000);
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({

@@ -255,13 +255,13 @@ app.view("conduct_report", async ({ ack, view, client }) => {
 
 app.command("/prevreports", async ({ command, ack, client, respond }) => {
   await ack();
-  if(!ALLOWED_CHANNELS.includes(command.channel_id)) {
-  respond({
-text: `You are not in the correct channel for this :P`,
-  response_type: 'ephemeral',
-})
+  if (!ALLOWED_CHANNELS.includes(command.channel_id)) {
+    respond({
+      text: `You are not in the correct channel for this :P`,
+      response_type: "ephemeral",
+    });
     return;
-}
+  }
   try {
     const [userId, source] = command.text.trim().split(" ");
     if (!userId || !source) {
@@ -302,15 +302,12 @@ text: `You are not in the correct channel for this :P`,
           text: `No previous messages mentioning ${userId} found in Slack :(`,
         });
       }
-
-      // Format all messages at once
       const messageBlocks = await Promise.all(
         filteredMessages.map(async (match) => {
           const permalinkResp = await client.chat.getPermalink({
             channel: match.channel.id,
             message_ts: match.ts,
           });
-
           const messageDate = new Date(parseFloat(match.ts) * 1000);
           const formattedDate = messageDate.toLocaleDateString("en-GB", {
             day: "numeric",
@@ -323,9 +320,7 @@ text: `You are not in the correct channel for this :P`,
             hour12: true,
           });
           const timestamp = `${formattedDate} at ${formattedTime}`;
-
           const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
-
           return {
             type: "section",
             text: {

@@ -275,7 +275,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
           "Time Of Report": new Date().toISOString(),
           "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
           "User Being Dealt With": reportedUserId,
-          "Display Name": userProfile.profile.display_name,
+          "Display Name": userProfile.profile.display_name || userProfile.profile.real_name,
           "What Did User Do": values.violation_deets.violation_deets_input.value,
           "How Was This Resolved": values.solution_deets.solution_input.value,
           "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,

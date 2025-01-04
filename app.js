@@ -253,6 +253,11 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
+    const reportedUserId = values.reported_user.user_select.selected_user;
+
+    const userProfile = await client.users.profile.get({
+      user: reportedUserId,
+    });
 
     const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
 
@@ -269,7 +274,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         fields: {
           "Time Of Report": new Date().toISOString(),
           "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
-          "User Being Dealt With": values.reported_user.user_select.selected_user,
+          "User Being Dealt With": reportedUserId,
+          "Display Name": userProfile.profile.display_name,
           "What Did User Do": values.violation_deets.violation_deets_input.value,
           "How Was This Resolved": values.solution_deets.solution_input.value,
           "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,

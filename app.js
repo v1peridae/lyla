@@ -6,7 +6,6 @@ require("dotenv").config();
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   signingSecret: process.env.SLACK_SIGNING_SECRET,
-  socketMode: false,
   port: process.env.PORT || 3000,
 });
 
@@ -73,7 +72,7 @@ async function checkThreadActivity(threadTs, channelId, client) {
 
       activeThreads.delete(threadTs);
     } catch (error) {
-      console.error("Error checking thread activity:", error);
+      console.error(error);
     }
   }, INACTIVITY_CHECK_DELAY);
 }
@@ -158,7 +157,7 @@ app.event("reaction_added", async ({ event, client }) => {
           setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
         }
       } catch (error) {
-        console.error("Error checking thread activity:", error);
+        console.error(error);
       }
     };
 
@@ -253,6 +252,11 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
+    const reportedUserId = values.reported_user.user_select.selected_user;
+
+    const userProfile = await client.users.profile.get({
+      user: reportedUserId,
+    });
 
     const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
 
@@ -269,7 +273,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         fields: {
           "Time Of Report": new Date().toISOString(),
           "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
-          "User Being Dealt With": values.reported_user.user_select.selected_user,
+          "User Being Dealt With": reportedUserId,
+          "Display Name": userProfile.profile.display_name || userProfile.profile.real_name,
           "What Did User Do": values.violation_deets.violation_deets_input.value,
           "How Was This Resolved": values.solution_deets.solution_input.value,
           "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
@@ -319,20 +324,15 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
   try {
     const [userId, source] = command.text.trim().split(" ");
     if (!userId || !source) {
-      return await client.chat.postMessage({
-        channel: command.channel_id,
+      return await respond({
         text: "Use the format: `/prevreports @user slack|airtable`",
+        response_type: "ephemeral",
       });
     }
 
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
 
     if (source.toLowerCase() === "slack") {
-      const initialMessage = await client.chat.postMessage({
-        channel: command.channel_id,
-        text: `Searching messages... (this might take a while)`,
-      });
-
       const msgSearch = await userClient.search.messages({
         query: `in:#hq-firehouse <@${cleanUserId}>`,
         count: 100,
@@ -351,9 +351,9 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
       const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
 
       if (!filteredMessages.length) {
-        return await client.chat.postMessage({
-          channel: command.channel_id,
+        return await respond({
           text: `No previous messages mentioning ${userId} found in Slack :(`,
+          response_type: "ephemeral",
         });
       }
       const messageBlocks = await Promise.all(
@@ -385,8 +385,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         })
       );
 
-      const response = await client.chat.postMessage({
-        channel: command.channel_id,
+      await respond({
         text: `Most recent Slack messages mentioning ${userId}`,
         blocks: [
           {
@@ -398,30 +397,10 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
           },
           ...messageBlocks,
         ],
+        response_type: "ephemeral",
         unfurl_links: false,
         unfurl_media: false,
       });
-
-      try {
-        await client.chat.delete({
-          channel: command.channel_id,
-          ts: initialMessage.ts,
-        });
-      } catch (error) {
-        console.error("Error deleting searching message:", error);
-      }
-
-      // Auto-delete after 1 hour
-      setTimeout(async () => {
-        try {
-          await client.chat.delete({
-            channel: command.channel_id,
-            ts: response.ts,
-          });
-        } catch (error) {
-          console.error("Error deleting results message:", error);
-        }
-      }, 60 * 60 * 1000);
     } else if (source.toLowerCase() === "airtable") {
       const records = await base("Conduct Reports")
         .select({
@@ -430,15 +409,10 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         })
         .all();
 
-      console.log("Found records:", records.length);
-      if (records.length > 0) {
-        console.log("Record User Being Dealt With:", records[0].fields["User Being Dealt With"]);
-      }
-
       if (!records.length) {
-        return await client.chat.postMessage({
-          channel: command.channel_id,
+        return await respond({
           text: `No previous reports found in the Airtable Base for ${userId} :(`,
+          response_type: "ephemeral",
         });
       }
 
@@ -484,8 +458,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
 
       const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
 
-      await client.chat.postMessage({
-        channel: command.channel_id,
+      await respond({
         text: messageText,
         blocks: [
           {
@@ -496,26 +469,18 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
             },
           },
         ],
+        response_type: "ephemeral",
         unfurl_links: false,
         unfurl_media: false,
       });
     } else {
-      return await client.chat.postMessage({
-        channel: command.channel_id,
-        text: "Erm you need to specify 'slack' or 'airtable' ",
+      return await respond({
+        text: "Erm you need to specify 'slack' or 'airtable'",
+        response_type: "ephemeral",
       });
     }
   } catch (error) {
-    console.error("Error in /prevreports:", {
-      error: error.message,
-      stack: error.stack,
-      command: command,
-    });
-
-    await client.chat.postMessage({
-      channel: command.channel_id,
-      text: `Error: ${error.message}. Please try again or contact support.`,
-    });
+    console.error(error);
   }
 });
 
@@ -544,7 +509,7 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
       ],
     });
   } catch (error) {
-    console.error("Error resetting thread timer:", error);
+    console.error(error);
   }
 });
 

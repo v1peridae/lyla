@@ -333,11 +333,6 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
     const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
 
     if (source.toLowerCase() === "slack") {
-      await respond({
-        text: "Searching messages... (this might take a while)",
-        response_type: "ephemeral",
-      });
-
       const msgSearch = await userClient.search.messages({
         query: `in:#hq-firehouse <@${cleanUserId}>`,
         count: 100,

@@ -512,41 +512,28 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
 });
 async function checkBansForToday(client) {
   try {
-    const today = new Date()
-      .toLocaleString("en-US", {
-        timeZone: "Africa/Nairobi",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      })
-      .split(",")[0]
-      .replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$1-$2");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     const records = await base("Conduct Reports")
       .select({
         filterByFormula: `AND(
           NOT({If Banned, Until When} = BLANK()),
-          {If Banned, Until When} = '${today}'
+          IS_BEFORE({If Banned, Until When}, TODAY())
         )`,
       })
       .all();
 
-    console.log("records:", records.length);
-
     if (records.length > 0) {
-      console.log(
-        " Ban found:",
-        records.map((record) => ({
-          userId: record.fields["User Being Dealt With"],
-        }))
-      );
-
       const banMessages = records.map((record) => {
         const userId = record.fields["User Being Dealt With"];
-        return `• <@${userId}>'s ban/shush is scheduled to end today`;
+        const banEndDate = new Date(record.fields["If Banned, Until When"]).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+        return `• <@${userId}>'s ban/shush was scheduled to end on ${banEndDate}`;
       });
-
-      console.log("Sending msg", banMessages);
 
       await client.chat.postMessage({
         channel: "C07UBURESHZ",
@@ -556,7 +543,7 @@ async function checkBansForToday(client) {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "*Today's Ban/Shush Updates:*\n\n" + banMessages.join("\n\n"),
+              text: "*Pending Ban/Shush Reviews:*\n\n" + banMessages.join("\n\n"),
             },
           },
         ],

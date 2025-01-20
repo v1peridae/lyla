@@ -575,7 +575,7 @@ async function checkBansForToday(client) {
   schedule.scheduleJob(
     {
       hour: 21,
-      minute: 37,
+      minute: 43,
       tz: "Africa/Nairobi",
     },
     async () => {

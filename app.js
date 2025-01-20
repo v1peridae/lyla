@@ -548,7 +548,7 @@ async function checkBansForToday(client) {
 (async () => {
   await app.start();
   console.log("⚡️ Bolt app is running!");
-  schedule.scheduleJob("40 20 * * *", () => {
+  schedule.scheduleJob("12 21 * * *", () => {
     checkBansForToday(app.client);
   });
 })();

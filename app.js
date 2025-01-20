@@ -531,11 +531,11 @@ async function checkBansForToday(client) {
           month: "short",
           year: "numeric",
         });
-        return `<@${userId}>'s ban/shush ends today (${banEndDate})`;
+        return `<@${userId}>'s ban/shush ends today (${banEndDate}), react :white_tick: if unbanned :)`;
       });
 
       await client.chat.postMessage({
-        channel: "C07UBURESHZ",
+        channel: "C07FL3G62LF",
         text: "Unban pwease",
         blocks: [
           {

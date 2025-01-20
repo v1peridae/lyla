@@ -525,16 +525,28 @@ async function checkBansForToday(client) {
     const records = await base("Conduct Reports")
       .select({
         filterByFormula: `AND(
-          NOT({If Banned, Until When} = ''),
+          NOT({If Banned, Until When} = BLANK()),
           {If Banned, Until When} = '${today}'
         )`,
       })
       .all();
+
+    console.log("records:", records.length);
+
     if (records.length > 0) {
+      console.log(
+        " Ban found:",
+        records.map((record) => ({
+          userId: record.fields["User Being Dealt With"],
+        }))
+      );
+
       const banMessages = records.map((record) => {
         const userId = record.fields["User Being Dealt With"];
         return `• <@${userId}>'s ban/shush is scheduled to end today`;
       });
+
+      console.log("Sending msg", banMessages);
 
       await client.chat.postMessage({
         channel: "C07UBURESHZ",
@@ -563,7 +575,7 @@ async function checkBansForToday(client) {
   schedule.scheduleJob(
     {
       hour: 21,
-      minute: 31,
+      minute: 37,
       tz: "Africa/Nairobi",
     },
     async () => {

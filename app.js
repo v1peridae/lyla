@@ -514,12 +514,11 @@ async function checkBansForToday(client) {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const records = await base("Conduct Reports")
       .select({
         filterByFormula: `AND(
           NOT({If Banned, Until When} = BLANK()),
-          IS_BEFORE({If Banned, Until When}, TODAY())
+          IS_SAME({If Banned, Until When}, TODAY(), 'day')
         )`,
       })
       .all();
@@ -532,7 +531,7 @@ async function checkBansForToday(client) {
           month: "short",
           year: "numeric",
         });
-        return `• <@${userId}>'s ban/shush was scheduled to end on ${banEndDate}`;
+        return `• <@${userId}>'s ban/shush ends today (${banEndDate})`;
       });
 
       await client.chat.postMessage({
@@ -543,7 +542,7 @@ async function checkBansForToday(client) {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "*Pending Ban/Shush Reviews:*\n\n" + banMessages.join("\n\n"),
+              text: "*Today's Ban/Shushes:*\n\n" + banMessages.join("\n\n"),
             },
           },
         ],

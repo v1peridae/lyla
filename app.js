@@ -1,6 +1,7 @@
 const { App } = require("@slack/bolt");
 const { WebClient } = require("@slack/web-api");
 const Airtable = require("airtable");
+const schedule = require("node-schedule");
 require("dotenv").config();
 
 const app = new App({
@@ -10,11 +11,8 @@ const app = new App({
 });
 
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
-
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
-
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-
 const INACTIVITY_CHECK_DELAY = 60 * 60 * 1000;
 const activeThreads = new Map();
 
@@ -512,8 +510,45 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
     console.error(error);
   }
 });
+async function checkBansForToday(client) {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const records = await base("Conduct Reports")
+      .select({
+        filterByFormula: `AND(
+          NOT({If Banned, Until When} = ''),
+          {If Banned, Until When} = '${today}'
+        )`,
+      })
+      .all();
+    if (records.length > 0) {
+      const banMessages = records.map((record) => {
+        const userId = record.fields["User Being Dealt With"];
+        return `• <@${userId}>'s ban/shush is scheduled to end today`;
+      });
 
+      await client.chat.postMessage({
+        channel: "C07UBURESHZ",
+        text: "Unban pwease",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "*Today's Ban/Shush Updates:*\n\n" + banMessages.join("\n\n"),
+            },
+          },
+        ],
+      });
+    }
+  } catch (error) {
+    console.error("Error checking bans:", error);
+  }
+}
 (async () => {
   await app.start();
   console.log("⚡️ Bolt app is running!");
+  schedule.scheduleJob("40 20 * * *", () => {
+    checkBansForToday(app.client);
+  });
 })();

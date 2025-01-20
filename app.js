@@ -531,7 +531,7 @@ async function checkBansForToday(client) {
           month: "short",
           year: "numeric",
         });
-        return `• <@${userId}>'s ban/shush ends today (${banEndDate})`;
+        return `<@${userId}>'s ban/shush ends today (${banEndDate})`;
       });
 
       await client.chat.postMessage({
@@ -542,7 +542,7 @@ async function checkBansForToday(client) {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "*Today's Ban/Shushes:*\n\n" + banMessages.join("\n\n"),
+              text: banMessages.join("\n\n"),
             },
           },
         ],

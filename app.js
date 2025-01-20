@@ -531,7 +531,7 @@ async function checkBansForToday(client) {
           month: "short",
           year: "numeric",
         });
-        return `<@${userId}>'s ban/shush ends today (${banEndDate}), react :white_tick: if unbanned :)`;
+        return `<@${userId}>'s ban/shush ends today (${banEndDate}), react ✅ if unbanned :)`;
       });
 
       await client.chat.postMessage({

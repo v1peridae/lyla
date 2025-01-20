@@ -550,7 +550,7 @@ async function checkBansForToday(client) {
   console.log("⚡️ Bolt app is running!");
   schedule.scheduleJob(
     {
-      rule: "20 21 * * *",
+      rule: "27 21 * * *",
       tz: "Africa/Nairobi",
     },
     () => {

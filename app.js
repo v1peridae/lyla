@@ -512,7 +512,16 @@ app.action("reset_thread_timer", async ({ ack, body, client }) => {
 });
 async function checkBansForToday(client) {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date()
+      .toLocaleString("en-US", {
+        timeZone: "Africa/Nairobi",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+      .split(",")[0]
+      .replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$1-$2");
+
     const records = await base("Conduct Reports")
       .select({
         filterByFormula: `AND(
@@ -548,13 +557,17 @@ async function checkBansForToday(client) {
 (async () => {
   await app.start();
   console.log("⚡️ Bolt app is running!");
+
+  await checkBansForToday(app.client);
+
   schedule.scheduleJob(
     {
-      rule: "27 21 * * *",
+      hour: 21,
+      minute: 31,
       tz: "Africa/Nairobi",
     },
-    () => {
-      checkBansForToday(app.client);
+    async () => {
+      await checkBansForToday(app.client);
     }
   );
 })();

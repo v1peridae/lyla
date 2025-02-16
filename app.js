@@ -51,7 +51,7 @@ const modalBlocks = [
     block_id: "reported_users",
     label: { type: "plain_text", text: "User(s) Being Reported?" },
     element: {
-      type: "mult_users_select",
+      type: "multi_users_select",
       action_id: "users_select",
     },
     optional: true,
@@ -102,7 +102,7 @@ const modalBlocks = [
     block_id: "resolved_by",
     label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
     element: {
-      type: "mult_users_select",
+      type: "multi_users_select",
       action_id: "resolver_select",
     },
   },

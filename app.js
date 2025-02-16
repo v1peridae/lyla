@@ -13,67 +13,6 @@ const app = new App({
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-const INACTIVITY_CHECK_DELAY = 60 * 60 * 1000;
-const activeThreads = new Map();
-
-async function checkThreadActivity(threadTs, channelId, client) {
-  setTimeout(async () => {
-    try {
-      const replies = await client.conversations.replies({
-        channel: channelId,
-        ts: threadTs,
-        limit: 100,
-      });
-
-      const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
-
-      if (!hasFormSubmission) {
-        const lastMessageTs = replies.messages[replies.messages.length - 1].ts;
-        const lastMessageTime = new Date(lastMessageTs * 1000);
-        const now = new Date();
-
-        if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
-          await client.chat.postMessage({
-            channel: channelId,
-            thread_ts: threadTs,
-            text: "Hey! Has this been resolved?",
-            blocks: [
-              {
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: "Hey! Has this been resolved?",
-                },
-              },
-              {
-                type: "actions",
-                elements: [
-                  {
-                    type: "button",
-                    text: { type: "plain_text", text: "No, still ongoing", emoji: true },
-                    action_id: "reset_thread_timer",
-                    value: JSON.stringify({ threadTs, channelId }),
-                    style: "danger",
-                  },
-                  {
-                    type: "button",
-                    text: { type: "plain_text", text: "Submit Report", emoji: true },
-                    action_id: "open_conduct_modal",
-                    style: "primary",
-                  },
-                ],
-              },
-            ],
-          });
-        }
-      }
-
-      activeThreads.delete(threadTs);
-    } catch (error) {
-      console.error(error);
-    }
-  }, INACTIVITY_CHECK_DELAY);
-}
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -101,65 +40,6 @@ app.event("reaction_added", async ({ event, client }) => {
         },
       ],
     });
-
-    const checkInactivity = async () => {
-      try {
-        const replies = await client.conversations.replies({
-          channel: event.item.channel,
-          ts: event.item.ts,
-          limit: 100,
-        });
-
-        const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
-
-        if (!hasFormSubmission) {
-          const lastMessageTs = replies.messages[replies.messages.length - 1].ts;
-          const lastMessageTime = new Date(lastMessageTs * 1000);
-          const now = new Date();
-
-          if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
-            await client.chat.postMessage({
-              channel: event.item.channel,
-              thread_ts: event.item.ts,
-              text: "Has this been resolved?",
-              blocks: [
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "Has this been resolved?",
-                  },
-                },
-                {
-                  type: "actions",
-                  elements: [
-                    {
-                      type: "button",
-                      text: { type: "plain_text", text: "No, still being sorted :)", emoji: true },
-                      action_id: "reset_thread_timer",
-                      value: JSON.stringify({ threadTs: event.item.ts, channelId: event.item.channel }),
-                      style: "danger",
-                    },
-                    {
-                      type: "button",
-                      text: { type: "plain_text", text: "Add A Record", emoji: true },
-                      action_id: "open_conduct_modal",
-                      style: "primary",
-                    },
-                  ],
-                },
-              ],
-            });
-            return;
-          }
-          setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
   } catch (error) {
     console.error(error);
   }
@@ -168,12 +48,23 @@ app.event("reaction_added", async ({ event, client }) => {
 const modalBlocks = [
   {
     type: "input",
-    block_id: "reported_user",
-    label: { type: "plain_text", text: "User Being Reported?" },
+    block_id: "reported_users",
+    label: { type: "plain_text", text: "User(s) Being Reported?" },
     element: {
-      type: "users_select",
-      action_id: "user_select",
+      type: "mult_users_select",
+      action_id: "users_select",
     },
+    optional: true,
+  },
+  {
+    type: "input",
+    block_id: "banned_user_ids",
+    label: { type: "plain_text", text: "User ID - Separate multiple with commas" },
+    element: {
+      type: "plain_text_input",
+      action_id: "banned_ids_input",
+    },
+    optional: true,
   },
   {
     type: "input",
@@ -211,7 +102,7 @@ const modalBlocks = [
     block_id: "resolved_by",
     label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
     element: {
-      type: "multi_users_select",
+      type: "mult_users_select",
       action_id: "resolver_select",
     },
   },
@@ -250,43 +141,58 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
-    const reportedUserId = values.reported_user.user_select.selected_user;
 
-    const userProfile = await client.users.profile.get({
-      user: reportedUserId,
-    });
+    const selectedUsers = values.reported_users.users_select.selected_users || [];
+    const bannedUserIds = values.banned_user_ids.banned_ids_input.value
+      ? values.banned_user_ids.banned_ids_input.value.split(",").map((id) => id.trim())
+      : [];
 
-    const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
+    const allUserIds = [...selectedUsers, ...bannedUserIds];
 
-    const banDate = values.ban_until.ban_date_input.selected_date
-      ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        })
-      : "N/A";
+    if (allUserIds.length === 0) {
+      throw new Error("Select users or enter their user IDs");
+    }
 
-    await base("Conduct Reports").create([
-      {
-        fields: {
-          "Time Of Report": new Date().toISOString(),
-          "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
-          "User Being Dealt With": reportedUserId,
-          "Display Name": userProfile.profile.display_name || userProfile.profile.real_name,
-          "What Did User Do": values.violation_deets.violation_deets_input.value,
-          "How Was This Resolved": values.solution_deets.solution_input.value,
-          "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
-          "Link To Message": permalink,
+    for (const userId of allUserIds) {
+      let displayName = "Unknown (Banned User)";
+
+      try {
+        const userProfile = await client.users.profile.get({ user: userId });
+        displayName = userProfile.profile.display_name || userProfile.profile.real_name;
+      } catch (error) {
+        console.log(`Couldn't fetch profile for ${userId}`);
+      }
+
+      await base("LYLA Records").create([
+        {
+          fields: {
+            "Time Of Report": new Date().toISOString(),
+            "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
+            "User Being Dealt With": userId,
+            "Display Name": displayName,
+            "What Did User Do": values.violation_deets.violation_deets_input.value,
+            "How Was This Resolved": values.solution_deets.solution_input.value,
+            "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
+            "Link To Message": permalink,
+          },
         },
-      },
-    ]);
+      ]);
+    }
 
     const reportFields = [
-      `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
-      `*Resolved By:*\n${resolvedBy}`,
+      `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
+      `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned or Shushed, Until:*\n${banDate || "N/A"}`,
+      `*If Banned or Shushed, Until:*\n${
+        values.ban_until.ban_date_input.selected_date
+          ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "N/A"
+      }`,
       `*Link To Message:*\n${permalink}`,
     ];
 
@@ -350,7 +256,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
 
       if (!filteredMessages.length) {
         return await respond({
-          text: `No previous messages mentioning ${userId} found in Slack :(`,
+          text: `No previous messages mentioning ${userId} found in Slack :)`,
           response_type: "ephemeral",
         });
       }
@@ -400,7 +306,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         unfurl_media: false,
       });
     } else if (source.toLowerCase() === "airtable") {
-      const records = await base("Conduct Reports")
+      const records = await base("LYLA Records")
         .select({
           filterByFormula: `{User Being Dealt With} = '${cleanUserId}'`,
           sort: [{ field: "Time Of Report", direction: "desc" }],
@@ -482,34 +388,6 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
   }
 });
 
-app.action("reset_thread_timer", async ({ ack, body, client }) => {
-  await ack();
-  try {
-    const { threadTs, channelId } = JSON.parse(body.actions[0].value);
-
-    if (!activeThreads.has(threadTs)) {
-      activeThreads.set(threadTs, true);
-      checkThreadActivity(threadTs, channelId, client);
-    }
-
-    await client.chat.update({
-      channel: body.channel.id,
-      ts: body.message.ts,
-      text: "LYLA WILL BE BACK MUHEHEHHEHE",
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: "I'll be back soon :P",
-          },
-        },
-      ],
-    });
-  } catch (error) {
-    console.error(error);
-  }
-});
 async function checkBansForToday(client) {
   try {
     const today = new Date();
@@ -556,13 +434,11 @@ async function checkBansForToday(client) {
   await app.start();
   console.log("⚡️ Bolt app is running!");
 
-  await checkBansForToday(app.client);
-
   schedule.scheduleJob(
     {
-      hour: 21,
-      minute: 43,
-      tz: "Africa/Nairobi",
+      hour: 7,
+      minute: 0,
+      tz: "America/New_York",
     },
     async () => {
       await checkBansForToday(app.client);

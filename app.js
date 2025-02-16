@@ -13,67 +13,6 @@ const app = new App({
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
-const INACTIVITY_CHECK_DELAY = 60 * 60 * 1000;
-const activeThreads = new Map();
-
-async function checkThreadActivity(threadTs, channelId, client) {
-  setTimeout(async () => {
-    try {
-      const replies = await client.conversations.replies({
-        channel: channelId,
-        ts: threadTs,
-        limit: 100,
-      });
-
-      const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
-
-      if (!hasFormSubmission) {
-        const lastMessageTs = replies.messages[replies.messages.length - 1].ts;
-        const lastMessageTime = new Date(lastMessageTs * 1000);
-        const now = new Date();
-
-        if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
-          await client.chat.postMessage({
-            channel: channelId,
-            thread_ts: threadTs,
-            text: "Hey! Has this been resolved?",
-            blocks: [
-              {
-                type: "section",
-                text: {
-                  type: "mrkdwn",
-                  text: "Hey! Has this been resolved?",
-                },
-              },
-              {
-                type: "actions",
-                elements: [
-                  {
-                    type: "button",
-                    text: { type: "plain_text", text: "No, still ongoing", emoji: true },
-                    action_id: "reset_thread_timer",
-                    value: JSON.stringify({ threadTs, channelId }),
-                    style: "danger",
-                  },
-                  {
-                    type: "button",
-                    text: { type: "plain_text", text: "Submit Report", emoji: true },
-                    action_id: "open_conduct_modal",
-                    style: "primary",
-                  },
-                ],
-              },
-            ],
-          });
-        }
-      }
-
-      activeThreads.delete(threadTs);
-    } catch (error) {
-      console.error(error);
-    }
-  }, INACTIVITY_CHECK_DELAY);
-}
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
@@ -101,65 +40,6 @@ app.event("reaction_added", async ({ event, client }) => {
         },
       ],
     });
-
-    const checkInactivity = async () => {
-      try {
-        const replies = await client.conversations.replies({
-          channel: event.item.channel,
-          ts: event.item.ts,
-          limit: 100,
-        });
-
-        const hasFormSubmission = replies.messages.some((msg) => msg.text && msg.text.includes("Conduct Report Filed :yay:"));
-
-        if (!hasFormSubmission) {
-          const lastMessageTs = replies.messages[replies.messages.length - 1].ts;
-          const lastMessageTime = new Date(lastMessageTs * 1000);
-          const now = new Date();
-
-          if (now - lastMessageTime >= INACTIVITY_CHECK_DELAY) {
-            await client.chat.postMessage({
-              channel: event.item.channel,
-              thread_ts: event.item.ts,
-              text: "Has this been resolved?",
-              blocks: [
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "Has this been resolved?",
-                  },
-                },
-                {
-                  type: "actions",
-                  elements: [
-                    {
-                      type: "button",
-                      text: { type: "plain_text", text: "No, still being sorted :)", emoji: true },
-                      action_id: "reset_thread_timer",
-                      value: JSON.stringify({ threadTs: event.item.ts, channelId: event.item.channel }),
-                      style: "danger",
-                    },
-                    {
-                      type: "button",
-                      text: { type: "plain_text", text: "Add A Record", emoji: true },
-                      action_id: "open_conduct_modal",
-                      style: "primary",
-                    },
-                  ],
-                },
-              ],
-            });
-            return;
-          }
-          setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    setTimeout(checkInactivity, INACTIVITY_CHECK_DELAY);
   } catch (error) {
     console.error(error);
   }
@@ -171,7 +51,7 @@ const modalBlocks = [
     block_id: "reported_users",
     label: { type: "plain_text", text: "User(s) Being Reported?" },
     element: {
-      type: "multi_users_select",
+      type: "mult_users_select",
       action_id: "users_select",
     },
     optional: true,
@@ -179,7 +59,7 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "banned_user_ids",
-    label: { type: "plain_text", text: "User ID (Separate multiple with commas)" },
+    label: { type: "plain_text", text: "User ID - Separate multiple with commas" },
     element: {
       type: "plain_text_input",
       action_id: "banned_ids_input",
@@ -222,7 +102,7 @@ const modalBlocks = [
     block_id: "resolved_by",
     label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
     element: {
-      type: "multi_users_select",
+      type: "mult_users_select",
       action_id: "resolver_select",
     },
   },
@@ -376,7 +256,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
 
       if (!filteredMessages.length) {
         return await respond({
-          text: `No previous messages mentioning ${userId} found in Slack :(`,
+          text: `No previous messages mentioning ${userId} found in Slack :)`,
           response_type: "ephemeral",
         });
       }
@@ -508,34 +388,6 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
   }
 });
 
-app.action("reset_thread_timer", async ({ ack, body, client }) => {
-  await ack();
-  try {
-    const { threadTs, channelId } = JSON.parse(body.actions[0].value);
-
-    if (!activeThreads.has(threadTs)) {
-      activeThreads.set(threadTs, true);
-      checkThreadActivity(threadTs, channelId, client);
-    }
-
-    await client.chat.update({
-      channel: body.channel.id,
-      ts: body.message.ts,
-      text: "LYLA WILL BE BACK MUHEHEHHEHE",
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: "I'll be back soon :P",
-          },
-        },
-      ],
-    });
-  } catch (error) {
-    console.error(error);
-  }
-});
 async function checkBansForToday(client) {
   try {
     const today = new Date();
@@ -581,8 +433,6 @@ async function checkBansForToday(client) {
 (async () => {
   await app.start();
   console.log("⚡️ Bolt app is running!");
-
-  await checkBansForToday(app.client);
 
   schedule.scheduleJob(
     {

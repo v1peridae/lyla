@@ -179,7 +179,7 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "banned_user_ids",
-    label: { type: "plain_text", text: "Optional UserID (Separate multiple with commas)" },
+    label: { type: "plain_text", text: "User ID (Separate multiple with commas)" },
     element: {
       type: "plain_text_input",
       action_id: "banned_ids_input",
@@ -300,7 +300,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     }
 
     const reportFields = [
-      `*Reported Users:*\n${allUserIds.map((id) => `<@${id}>`).join(", ")}`,
+      `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,

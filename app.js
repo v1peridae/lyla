@@ -168,12 +168,23 @@ app.event("reaction_added", async ({ event, client }) => {
 const modalBlocks = [
   {
     type: "input",
-    block_id: "reported_user",
-    label: { type: "plain_text", text: "User Being Reported?" },
+    block_id: "reported_users",
+    label: { type: "plain_text", text: "User(s) Being Reported?" },
     element: {
-      type: "users_select",
-      action_id: "user_select",
+      type: "multi_users_select",
+      action_id: "users_select",
     },
+    optional: true,
+  },
+  {
+    type: "input",
+    block_id: "banned_user_ids",
+    label: { type: "plain_text", text: "Optional UserID (Separate multiple with commas)" },
+    element: {
+      type: "plain_text_input",
+      action_id: "banned_ids_input",
+    },
+    optional: true,
   },
   {
     type: "input",
@@ -250,43 +261,58 @@ app.view("conduct_report", async ({ ack, view, client }) => {
   try {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
-    const reportedUserId = values.reported_user.user_select.selected_user;
 
-    const userProfile = await client.users.profile.get({
-      user: reportedUserId,
-    });
+    const selectedUsers = values.reported_users.users_select.selected_users || [];
+    const bannedUserIds = values.banned_user_ids.banned_ids_input.value
+      ? values.banned_user_ids.banned_ids_input.value.split(",").map((id) => id.trim())
+      : [];
 
-    const resolvedBy = values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ");
+    const allUserIds = [...selectedUsers, ...bannedUserIds];
 
-    const banDate = values.ban_until.ban_date_input.selected_date
-      ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        })
-      : "N/A";
+    if (allUserIds.length === 0) {
+      throw new Error("Select users or enter their user IDs");
+    }
 
-    await base("Conduct Reports").create([
-      {
-        fields: {
-          "Time Of Report": new Date().toISOString(),
-          "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
-          "User Being Dealt With": reportedUserId,
-          "Display Name": userProfile.profile.display_name || userProfile.profile.real_name,
-          "What Did User Do": values.violation_deets.violation_deets_input.value,
-          "How Was This Resolved": values.solution_deets.solution_input.value,
-          "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
-          "Link To Message": permalink,
+    for (const userId of allUserIds) {
+      let displayName = "Unknown (Banned User)";
+
+      try {
+        const userProfile = await client.users.profile.get({ user: userId });
+        displayName = userProfile.profile.display_name || userProfile.profile.real_name;
+      } catch (error) {
+        console.log(`Couldn't fetch profile for ${userId}`);
+      }
+
+      await base("LYLA Records").create([
+        {
+          fields: {
+            "Time Of Report": new Date().toISOString(),
+            "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
+            "User Being Dealt With": userId,
+            "Display Name": displayName,
+            "What Did User Do": values.violation_deets.violation_deets_input.value,
+            "How Was This Resolved": values.solution_deets.solution_input.value,
+            "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
+            "Link To Message": permalink,
+          },
         },
-      },
-    ]);
+      ]);
+    }
 
     const reportFields = [
-      `*Reported User:*\n<@${values.reported_user.user_select.selected_user}>`,
-      `*Resolved By:*\n${resolvedBy}`,
+      `*Reported Users:*\n${allUserIds.map((id) => `<@${id}>`).join(", ")}`,
+      `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
-      `*If Banned or Shushed, Until:*\n${banDate || "N/A"}`,
+      `*If Banned or Shushed, Until:*\n${
+        values.ban_until.ban_date_input.selected_date
+          ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "N/A"
+      }`,
       `*Link To Message:*\n${permalink}`,
     ];
 
@@ -400,7 +426,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         unfurl_media: false,
       });
     } else if (source.toLowerCase() === "airtable") {
-      const records = await base("Conduct Reports")
+      const records = await base("LYLA Records")
         .select({
           filterByFormula: `{User Being Dealt With} = '${cleanUserId}'`,
           sort: [{ field: "Time Of Report", direction: "desc" }],
@@ -535,7 +561,7 @@ async function checkBansForToday(client) {
       });
 
       await client.chat.postMessage({
-        channel: "G01DBHPLK25",
+        channel: "C07UBURESHZ",
         text: "Unban awaiting!!",
         blocks: [
           {
@@ -560,9 +586,9 @@ async function checkBansForToday(client) {
 
   schedule.scheduleJob(
     {
-      hour: 21,
-      minute: 43,
-      tz: "Africa/Nairobi",
+      hour: 7,
+      minute: 0,
+      tz: "America/New_York",
     },
     async () => {
       await checkBansForToday(app.client);

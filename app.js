@@ -561,7 +561,7 @@ async function checkBansForToday(client) {
       });
 
       await client.chat.postMessage({
-        channel: "C07UBURESHZ",
+        channel: "G01DBHPLK25",
         text: "Unban awaiting!!",
         blocks: [
           {

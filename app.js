@@ -219,11 +219,21 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         year: "numeric",
       });
 
+      const whatIdo = values.violation_deets.violation_deets_input.value.toLowerCase();
+      const banwords = ["deactivated", "banned", "deactivate", "ban", "deactivating", "banning", "ban"];
+      const shushwords = ["shush", "mute", "shushing", "muting", "muted", "shushed"];
+
+      const action = banwords.some((word) => whatIdo.includes(word))
+        ? "banned"
+        : shushwords.some((word) => whatIdo.includes(word))
+        ? "shushed"
+        : "banned/shushed";
+
       const userMention = allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ");
 
       await client.chat.postMessage({
         channel: "C07UBURESHZ",
-        text: `${userMention} has been banned/shushed until ${dateFormat}... be good kids ^^`,
+        text: `${userMention} has been ${action} until ${dateFormat}... be good kids ^^`,
       });
     }
   } catch (error) {

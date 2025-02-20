@@ -223,7 +223,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
 
       await client.chat.postMessage({
         channel: "C07UBURESHZ",
-        text: `${userMention} has been shushed until ${dateFormat}... be good kids ^^`,
+        text: `${userMention} has been banned/shushed until ${dateFormat}... be good kids ^^`,
       });
     }
   } catch (error) {

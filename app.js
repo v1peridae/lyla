@@ -51,7 +51,7 @@ const modalBlocks = [
     block_id: "reported_users",
     label: { type: "plain_text", text: "User(s) Being Reported?" },
     element: {
-      type: "mult_users_select",
+      type: "multi_users_select",
       action_id: "users_select",
     },
     optional: true,
@@ -102,7 +102,7 @@ const modalBlocks = [
     block_id: "resolved_by",
     label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
     element: {
-      type: "mult_users_select",
+      type: "multi_users_select",
       action_id: "resolver_select",
     },
   },
@@ -148,6 +148,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       : [];
 
     const allUserIds = [...selectedUsers, ...bannedUserIds];
+    const banDate = values.ban_until.ban_date_input.selected_date;
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
@@ -211,6 +212,20 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         },
       ],
     });
+    if (banDate) {
+      const dateFormat = new Date(banDate).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+
+      const userMention = allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ");
+
+      await client.chat.postMessage({
+        channel: "C07UBURESHZ",
+        text: `${userMention} has been shushed until ${dateFormat}... be good kids ^^`,
+      });
+    }
   } catch (error) {
     console.error(error);
   }

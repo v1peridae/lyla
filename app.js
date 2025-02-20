@@ -219,13 +219,13 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         year: "numeric",
       });
 
-      const whatIdo = values.violation_deets.violation_deets_input.value.toLowerCase();
+      const actionTaken = values.solution_deets.solution_input.value.toLowerCase();
       const banwords = ["deactivated", "banned", "deactivate", "ban", "deactivating", "banning", "ban"];
       const shushwords = ["shush", "mute", "shushing", "muting", "muted", "shushed"];
 
-      const action = banwords.some((word) => whatIdo.includes(word))
+      const action = banwords.some((word) => actionTaken.includes(word))
         ? "banned"
-        : shushwords.some((word) => whatIdo.includes(word))
+        : shushwords.some((word) => actionTaken.includes(word))
         ? "shushed"
         : "banned/shushed";
 

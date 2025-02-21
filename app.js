@@ -186,23 +186,29 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         const userProfile = await client.users.profile.get({ user: userId });
         displayName = userProfile.profile.display_name || userProfile.profile.real_name;
       } catch (error) {
-        console.log(`Couldn't fetch profile for ${userId}`);
+        console.log(`Couldn't fetch profile for ${userId}: ${error.message}`);
       }
 
-      await base("LYLA Records").create([
-        {
-          fields: {
-            "Time Of Report": new Date().toISOString(),
-            "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
-            "User Being Dealt With": userId,
-            "Display Name": displayName,
-            "What Did User Do": values.violation_deets.violation_deets_input.value,
-            "How Was This Resolved": finalsolution,
-            "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
-            "Link To Message": permalink,
+      try {
+        const record = await base("LYLA Records").create([
+          {
+            fields: {
+              "Time Of Report": new Date().toISOString(),
+              "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
+              "User Being Dealt With": userId,
+              "Display Name": displayName,
+              "What Did User Do": values.violation_deets.violation_deets_input.value,
+              "How Was This Resolved": finalsolution,
+              "If Banned, Until When": banDate || null,
+              "Link To Message": permalink,
+            },
           },
-        },
-      ]);
+        ]);
+        console.log("Created Airtable record:", record);
+      } catch (error) {
+        console.error("Error creating Airtable record:", error);
+        throw error;
+      }
     }
 
     const reportFields = [

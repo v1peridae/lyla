@@ -17,32 +17,28 @@ const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
-  try {
-    await client.chat.postMessage({
-      channel: event.item.channel,
-      thread_ts: event.item.ts,
-      text: "Wanna file a conduct report?",
-      blocks: [
-        {
-          type: "section",
-          text: { type: "mrkdwn", text: "*Wanna file a conduct report?*" },
-        },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "File A Report Here", emoji: true },
-              action_id: "open_conduct_modal",
-              style: "primary",
-            },
-          ],
-        },
-      ],
-    });
-  } catch (error) {
-    console.error(error);
-  }
+  await client.chat.postMessage({
+    channel: event.item.channel,
+    thread_ts: event.item.ts,
+    text: "Wanna file a conduct report?",
+    blocks: [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "*Wanna file a conduct report?*" },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "File A Report Here", emoji: true },
+            action_id: "open_conduct_modal",
+            style: "primary",
+          },
+        ],
+      },
+    ],
+  });
 });
 
 const modalBlocks = [
@@ -131,30 +127,26 @@ const modalBlocks = [
 
 app.action("open_conduct_modal", async ({ ack, body, client }) => {
   await ack();
-  try {
-    const permalinkResponse = await client.chat.getPermalink({
-      channel: body.channel.id,
-      message_ts: body.message.thread_ts || body.message.ts,
-    });
+  const permalinkResponse = await client.chat.getPermalink({
+    channel: body.channel.id,
+    message_ts: body.message.thread_ts || body.message.ts,
+  });
 
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: {
-        type: "modal",
-        callback_id: "conduct_report",
-        private_metadata: JSON.stringify({
-          channel: body.channel.id,
-          thread_ts: body.message.thread_ts || body.message.ts,
-          permalink: permalinkResponse.permalink,
-        }),
-        title: { type: "plain_text", text: "FD Record Keeping" },
-        blocks: modalBlocks,
-        submit: { type: "plain_text", text: "Submit" },
-      },
-    });
-  } catch (error) {
-    console.error(error);
-  }
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: {
+      type: "modal",
+      callback_id: "conduct_report",
+      private_metadata: JSON.stringify({
+        channel: body.channel.id,
+        thread_ts: body.message.thread_ts || body.message.ts,
+        permalink: permalinkResponse.permalink,
+      }),
+      title: { type: "plain_text", text: "FD Record Keeping" },
+      blocks: modalBlocks,
+      submit: { type: "plain_text", text: "Submit" },
+    },
+  });
 });
 
 app.view("conduct_report", async ({ ack, view, client }) => {
@@ -190,29 +182,23 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         const userProfile = await client.users.profile.get({ user: userId });
         displayName = userProfile.profile.display_name || userProfile.profile.real_name;
       } catch (error) {
-        console.log(`Couldn't fetch profile for ${userId}: ${error.message}`);
+        console.log(`Couldn't fetch profile for ${userId}`);
       }
 
-      try {
-        const record = await base("LYLA Records").create([
-          {
-            fields: {
-              "Time Of Report": new Date().toISOString(),
-              "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
-              "User Being Dealt With": userId,
-              "Display Name": displayName,
-              "What Did User Do": values.violation_deets.violation_deets_input.value,
-              "How Was This Resolved": finalsolution,
-              "If Banned, Until When": banDate || null,
-              "Link To Message": permalink,
-            },
+      await base("LYLA Records").create([
+        {
+          fields: {
+            "Time Of Report": new Date().toISOString(),
+            "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
+            "User Being Dealt With": userId,
+            "Display Name": displayName,
+            "What Did User Do": values.violation_deets.violation_deets_input.value,
+            "How Was This Resolved": finalsolution,
+            "If Banned, Until When": banDate || null,
+            "Link To Message": permalink,
           },
-        ]);
-        console.log("Created Airtable record:", record);
-      } catch (error) {
-        console.error("Error creating Airtable record:", error);
-        throw error;
-      }
+        },
+      ]);
     }
 
     const reportFields = [
@@ -281,211 +267,205 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
     });
     return;
   }
-  try {
-    const [userId, source] = command.text.trim().split(" ");
-    if (!userId || !source) {
-      return await respond({
-        text: "Use the format: `/prevreports @user slack|airtable`",
-        response_type: "ephemeral",
-      });
-    }
 
-    const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
-
-    if (source.toLowerCase() === "slack") {
-      const msgSearch = await userClient.search.messages({
-        query: `in:#hq-firehouse <@${cleanUserId}>`,
-        count: 100,
-        sort: "timestamp",
-        sort_dir: "asc",
-      });
-
-      let allMessages = [...msgSearch.messages.matches];
-      allMessages = allMessages.filter((match) => {
-        const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
-        const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
-        return mentionsUser || !isThreadMessage;
-      });
-
-      allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
-
-      if (!filteredMessages.length) {
-        return await respond({
-          text: `No previous messages mentioning ${userId} found in Slack :)`,
-          response_type: "ephemeral",
-        });
-      }
-      const messageBlocks = await Promise.all(
-        filteredMessages.map(async (match) => {
-          const permalinkResp = await client.chat.getPermalink({
-            channel: match.channel.id,
-            message_ts: match.ts,
-          });
-          const messageDate = new Date(parseFloat(match.ts) * 1000);
-          const formattedDate = messageDate.toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          });
-          const formattedTime = messageDate.toLocaleString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-          });
-          const timestamp = `${formattedDate} at ${formattedTime}`;
-          const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
-          return {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`,
-            },
-          };
-        })
-      );
-
-      await respond({
-        text: `Most recent Slack messages mentioning ${userId}`,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `Most recent Slack messages mentioning ${userId}:`,
-            },
-          },
-          ...messageBlocks,
-        ],
-        response_type: "ephemeral",
-        unfurl_links: false,
-        unfurl_media: false,
-      });
-    } else if (source.toLowerCase() === "airtable") {
-      const records = await base("LYLA Records")
-        .select({
-          filterByFormula: `{User Being Dealt With} = '${cleanUserId}'`,
-          sort: [{ field: "Time Of Report", direction: "desc" }],
-        })
-        .all();
-
-      if (!records.length) {
-        return await respond({
-          text: `No previous reports found in the Airtable Base for ${userId} :(`,
-          response_type: "ephemeral",
-        });
-      }
-
-      const formatUserMentions = async (userIds, client) => {
-        if (!userIds) return "";
-        const uids = userIds
-          .replace(/[<@>]/g, "")
-          .split(",")
-          .map((id) => id.trim());
-        const mentions = [];
-        for (const uid of uids) {
-          try {
-            const result = await client.users.info({ user: uid });
-            mentions.push(`@${result.user.name}`);
-          } catch (error) {
-            mentions.push(uid);
-          }
-        }
-
-        return mentions.join(", ");
-      };
-
-      const reportEntries = await Promise.all(
-        records.map(async (record) => {
-          const fields = record.fields;
-          const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          });
-
-          const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
-
-          let reportText = `*Report from ${date}*
-  *Dealt With By:* ${dealtWithBy}
-  *What Did User Do:* ${fields["What Did User Do"]}
-  *How Was This Resolved:* ${fields["How Was This Resolved"]}
-<${fields["Link To Message"]}|View Message>`;
-
-          return reportText;
-        })
-      );
-
-      const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
-
-      await respond({
-        text: messageText,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: messageText.substring(0, 2900),
-            },
-          },
-        ],
-        response_type: "ephemeral",
-        unfurl_links: false,
-        unfurl_media: false,
-      });
-    } else {
-      return await respond({
-        text: "Erm you need to specify 'slack' or 'airtable'",
-        response_type: "ephemeral",
-      });
-    }
-  } catch (error) {
-    console.error(error);
+  const [userId, source] = command.text.trim().split(" ");
+  if (!userId || !source) {
+    return await respond({
+      text: "Use the format: `/prevreports @user slack|airtable`",
+      response_type: "ephemeral",
+    });
   }
-});
 
-async function checkBansForToday(client) {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const records = await base("LYLA Records")
-      .select({
-        filterByFormula: `AND(
-          NOT({If Banned, Until When} = BLANK()),
-          IS_SAME({If Banned, Until When}, TODAY(), 'day')
-        )`,
-      })
-      .all();
+  const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
 
-    if (records.length > 0) {
-      const banMessages = records.map((record) => {
-        const userId = record.fields["User Being Dealt With"];
-        const banEndDate = new Date(record.fields["If Banned, Until When"]).toLocaleDateString("en-GB", {
+  if (source.toLowerCase() === "slack") {
+    const msgSearch = await userClient.search.messages({
+      query: `in:#hq-firehouse <@${cleanUserId}>`,
+      count: 100,
+      sort: "timestamp",
+      sort_dir: "asc",
+    });
+
+    let allMessages = [...msgSearch.messages.matches];
+    allMessages = allMessages.filter((match) => {
+      const mentionsUser = match.text.includes(`<@${cleanUserId}>`);
+      const isThreadMessage = match.thread_ts && match.thread_ts !== match.ts;
+      return mentionsUser || !isThreadMessage;
+    });
+
+    allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
+    const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
+
+    if (!filteredMessages.length) {
+      return await respond({
+        text: `No previous messages mentioning ${userId} found in Slack :)`,
+        response_type: "ephemeral",
+      });
+    }
+    const messageBlocks = await Promise.all(
+      filteredMessages.map(async (match) => {
+        const permalinkResp = await client.chat.getPermalink({
+          channel: match.channel.id,
+          message_ts: match.ts,
+        });
+        const messageDate = new Date(parseFloat(match.ts) * 1000);
+        const formattedDate = messageDate.toLocaleDateString("en-GB", {
           day: "numeric",
           month: "short",
           year: "numeric",
         });
-        return `<@${userId}>'s ban/shush ends today (${banEndDate}), react ✅ if unbanned :)`;
-      });
-
-      await client.chat.postMessage({
-        channel: "G01DBHPLK25",
-        text: "Unban awaiting!!",
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: banMessages.join("\n\n"),
-            },
+        const formattedTime = messageDate.toLocaleString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+        const timestamp = `${formattedDate} at ${formattedTime}`;
+        const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+        return {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`,
           },
-        ],
+        };
+      })
+    );
+
+    await respond({
+      text: `Most recent Slack messages mentioning ${userId}`,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `Most recent Slack messages mentioning ${userId}:`,
+          },
+        },
+        ...messageBlocks,
+      ],
+      response_type: "ephemeral",
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+  } else if (source.toLowerCase() === "airtable") {
+    const records = await base("LYLA Records")
+      .select({
+        filterByFormula: `{User Being Dealt With} = '${cleanUserId}'`,
+        sort: [{ field: "Time Of Report", direction: "desc" }],
+      })
+      .all();
+
+    if (!records.length) {
+      return await respond({
+        text: `No previous reports found in the Airtable Base for ${userId} :(`,
+        response_type: "ephemeral",
       });
     }
-  } catch (error) {
-    console.error("Error checking bans:", error);
+
+    const formatUserMentions = async (userIds, client) => {
+      if (!userIds) return "";
+      const uids = userIds
+        .replace(/[<@>]/g, "")
+        .split(",")
+        .map((id) => id.trim());
+      const mentions = [];
+      for (const uid of uids) {
+        try {
+          const result = await client.users.info({ user: uid });
+          mentions.push(`@${result.user.name}`);
+        } catch (error) {
+          mentions.push(uid);
+        }
+      }
+
+      return mentions.join(", ");
+    };
+
+    const reportEntries = await Promise.all(
+      records.map(async (record) => {
+        const fields = record.fields;
+        const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+        const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
+
+        let reportText = `*Report from ${date}*
+*Dealt With By:* ${dealtWithBy}
+*What Did User Do:* ${fields["What Did User Do"]}
+*How Was This Resolved:* ${fields["How Was This Resolved"]}
+<${fields["Link To Message"]}|View Message>`;
+
+        return reportText;
+      })
+    );
+
+    const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+
+    await respond({
+      text: messageText,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: messageText.substring(0, 2900),
+          },
+        },
+      ],
+      response_type: "ephemeral",
+      unfurl_links: false,
+      unfurl_media: false,
+    });
+  } else {
+    return await respond({
+      text: "Erm you need to specify 'slack' or 'airtable'",
+      response_type: "ephemeral",
+    });
+  }
+});
+
+async function checkBansForToday(client) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const records = await base("LYLA Records")
+    .select({
+      filterByFormula: `AND(
+        NOT({If Banned, Until When} = BLANK()),
+        IS_SAME({If Banned, Until When}, TODAY(), 'day')
+      )`,
+    })
+    .all();
+
+  if (records.length > 0) {
+    const banMessages = records.map((record) => {
+      const userId = record.fields["User Being Dealt With"];
+      const banEndDate = new Date(record.fields["If Banned, Until When"]).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      return `<@${userId}>'s ban/shush ends today (${banEndDate}), react ✅ if unbanned :)`;
+    });
+
+    await client.chat.postMessage({
+      channel: "G01DBHPLK25",
+      text: "Unban awaiting!!",
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: banMessages.join("\n\n"),
+          },
+        },
+      ],
+    });
   }
 }
+
 (async () => {
   await app.start();
   console.log("⚡️ Bolt app is running!");

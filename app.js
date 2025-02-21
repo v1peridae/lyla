@@ -249,7 +249,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       const userMention = allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ");
 
       await client.chat.postMessage({
-        channel: "C07UBURESHZ",
+        channel: "C085UEFDW6R",
         text: `${userMention} has been ${action} until ${dateFormat}... be good kids ^^`,
       });
     }

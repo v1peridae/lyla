@@ -171,6 +171,10 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     const allUserIds = [...selectedUsers, ...bannedUserIds];
     const banDate = values.ban_until.ban_date_input.selected_date;
 
+    const dropdwnsolution = values.solution_deets.solution_select.selected_option.value;
+    const customsolution = values.solution_custom.solution_custom_input.value;
+    const finalsolution = customsolution || dropdwnsolution;
+
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
     }
@@ -184,10 +188,6 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       } catch (error) {
         console.log(`Couldn't fetch profile for ${userId}`);
       }
-
-      const dropdwnsolution = values.solution_deets.solution_select.selected_option.value;
-      const customsolution = values.solution_custom.solution_custom_input.value;
-      const finalsolution = customsolution || dropdwnsolution;
 
       await base("LYLA Records").create([
         {

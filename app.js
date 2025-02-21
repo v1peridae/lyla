@@ -80,7 +80,7 @@ const modalBlocks = [
     element: {
       type: "static_select",
       action_id: "solution_select",
-      placeholder: { type: "plain_text", text: "Write something" },
+      placeholder: { type: "plain_text", text: "Select an option" },
       options: [
         { text: { type: "plain_text", text: "Temp Ban" }, value: "Temp Ban" },
         { text: { type: "plain_text", text: "Perma Ban" }, value: "Perma Ban" },
@@ -96,7 +96,7 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "custom_solution",
-    label: { type: "plain_text", text: "Howd'ya deal with it? (Text edition)" },
+    label: { type: "plain_text", text: "Write something" },
     element: {
       type: "plain_text_input",
       action_id: "solution_custom_input",

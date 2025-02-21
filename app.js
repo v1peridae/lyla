@@ -81,10 +81,31 @@ const modalBlocks = [
     block_id: "solution_deets",
     label: { type: "plain_text", text: "How Was This Solved?" },
     element: {
+      type: "static_select",
+      action_id: "solution_select",
+      placeholder: { type: "plain_text", text: "Howd'ya deal with it?" },
+      options: [
+        { text: { type: "plain_text", text: "Temp Ban" }, value: "Temp Ban" },
+        { text: { type: "plain_text", text: "Perma Ban" }, value: "Perma Ban" },
+        { text: { type: "plain_text", text: "DM" }, value: "DM" },
+        { text: { type: "plain_text", text: "Warning" }, value: "Warning" },
+        { text: { type: "plain_text", text: "Shush" }, value: "Shush" },
+        { text: { type: "plain_text", text: "Locked Thread" }, value: "Locked Thread" },
+      ],
+    },
+    optional: true,
+  },
+
+  {
+    type: "input",
+    block_id: "custom_solution",
+    label: { type: "plain_text", text: "Howd'ya deal with it? (Text edition)" },
+    element: {
       type: "plain_text_input",
-      action_id: "solution_input",
+      action_id: "solution_custom_input",
       multiline: true,
     },
+    optional: true,
   },
   {
     type: "input",
@@ -164,6 +185,10 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         console.log(`Couldn't fetch profile for ${userId}`);
       }
 
+      const dropdwnsolution = values.solution_deets.solution_select.selected_option.value;
+      const customsolution = values.solution_custom.solution_custom_input.value;
+      const finalsolution = customsolution || dropdwnsolution;
+
       await base("LYLA Records").create([
         {
           fields: {
@@ -172,7 +197,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
             "User Being Dealt With": userId,
             "Display Name": displayName,
             "What Did User Do": values.violation_deets.violation_deets_input.value,
-            "How Was This Resolved": values.solution_deets.solution_input.value,
+            "How Was This Resolved": finalsolution,
             "If Banned, Until When": values.ban_until.ban_date_input.selected_date || null,
             "Link To Message": permalink,
           },
@@ -184,7 +209,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
-      `*How Did We Deal With This?*\n${values.solution_deets.solution_input.value}`,
+      `*How Did We Deal With This?*\n${finalsolution}`,
       `*If Banned or Shushed, Until:*\n${
         values.ban_until.ban_date_input.selected_date
           ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
@@ -219,13 +244,9 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         year: "numeric",
       });
 
-      const actionTaken = values.solution_deets.solution_input.value.toLowerCase();
-      const banwords = ["deactivated", "banned", "deactivate", "ban", "deactivating", "banning", "ban"];
-      const shushwords = ["shush", "mute", "shushing", "muting", "muted", "shushed"];
-
-      const action = banwords.some((word) => actionTaken.includes(word))
+      const action = finalsolution.toLowerCase().includes("ban")
         ? "banned"
-        : shushwords.some((word) => actionTaken.includes(word))
+        : finalsolution.toLowerCase().includes("shush")
         ? "shushed"
         : "banned/shushed";
 
@@ -417,7 +438,7 @@ async function checkBansForToday(client) {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const records = await base("Conduct Reports")
+    const records = await base("LYLA Records")
       .select({
         filterByFormula: `AND(
           NOT({If Banned, Until When} = BLANK()),

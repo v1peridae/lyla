@@ -96,7 +96,7 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "custom_solution",
-    label: { type: "plain_text", text: "Write something" },
+    label: { type: "plain_text", text: "How Was This Solved? (Text edition)" },
     element: {
       type: "plain_text_input",
       action_id: "solution_custom_input",

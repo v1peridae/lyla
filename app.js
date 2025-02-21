@@ -12,6 +12,7 @@ const app = new App({
 
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
+const NOTIF_CHANNEL = "C07UBURESHZ";
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 
 app.event("reaction_added", async ({ event, client }) => {
@@ -233,24 +234,26 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         },
       ],
     });
-    if (banDate) {
-      const dateFormat = new Date(banDate).toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
-
-      const action = finalsolution.toLowerCase().includes("ban")
-        ? "banned"
-        : finalsolution.toLowerCase().includes("shush")
-        ? "shushed"
-        : "banned/shushed";
-
+    if (banDate || finalsolution.toLowerCase().includes("perma")) {
       const userMention = allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ");
 
+      let notifmsg;
+      if (finalsolution.toLowerCase().includes("perma")) {
+        notifmsg = `${userMention} has been permanently banned... be good kids ^^`;
+      } else {
+        const dateFormat = new Date(banDate).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+
+        const action = finalsolution.toLowerCase().includes("shush") ? "shushed" : "banned";
+        notifmsg = `${userMention} has been ${action} until ${dateFormat}... be good kids ^^`;
+      }
+
       await client.chat.postMessage({
-        channel: "C085UEFDW6R",
-        text: `${userMention} has been ${action} until ${dateFormat}... be good kids ^^`,
+        channel: NOTIF_CHANNEL,
+        text: notifmsg,
       });
     }
   } catch (error) {

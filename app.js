@@ -78,9 +78,9 @@ const modalBlocks = [
     block_id: "solution_deets",
     label: { type: "plain_text", text: "How Was This Solved?" },
     element: {
-      type: "static_select",
+      type: "multi_static_select",
       action_id: "solution_select",
-      placeholder: { type: "plain_text", text: "Select an option" },
+      placeholder: { type: "plain_text", text: "Select options" },
       options: [
         { text: { type: "plain_text", text: "Temp Ban" }, value: "Temp Ban" },
         { text: { type: "plain_text", text: "Perma Ban" }, value: "Perma Ban" },
@@ -122,6 +122,7 @@ const modalBlocks = [
     element: {
       type: "multi_users_select",
       action_id: "resolver_select",
+      initial_user: ["{{user_id}}"],
     },
   },
 ];
@@ -132,6 +133,10 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
     channel: body.channel.id,
     message_ts: body.message.thread_ts || body.message.ts,
   });
+
+  const modalBlocksWithUser = JSON.parse(JSON.stringify(modalBlocks));
+  const resolverBlock = modalBlocksWithUser.find((block) => block.block_id === "resolved_by");
+  resolverBlock.element.initial_user = [body.user.id];
 
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -144,7 +149,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
         permalink: permalinkResponse.permalink,
       }),
       title: { type: "plain_text", text: "FD Record Keeping" },
-      blocks: modalBlocks,
+      blocks: modalBlocksWithUser,
       submit: { type: "plain_text", text: "Submit" },
     },
   });
@@ -164,9 +169,9 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     const allUserIds = [...selectedUsers, ...bannedUserIds];
     const banDate = values.ban_until.ban_date_input.selected_date;
 
-    const dropdwnsolution = values.solution_deets?.solution_select?.selected_option?.value;
+    const dropdwnsolutions = values.solution_deets?.solution_select?.selected_options?.map((opt) => opt.value) || [];
     const customsolution = values.solution_custom?.solution_custom_input?.value;
-    const finalsolution = customsolution || dropdwnsolution;
+    const finalsolution = customsolution || dropdwnsolutions.join(", ");
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");

@@ -208,7 +208,12 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     }
 
     const reportFields = [
-      `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
+      `*Reported Users:*\n${allUserIds
+        .map((id) => {
+          const cleanId = id.startsWith("<@") ? id.slice(2, -1).split("|")[0] : id;
+          return `<@${cleanId}>`;
+        })
+        .join(", ")}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${finalsolution}`,

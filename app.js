@@ -122,7 +122,7 @@ const modalBlocks = [
     element: {
       type: "multi_users_select",
       action_id: "resolver_select",
-      initial_user: ["{{user_id}}"],
+      initial_users: ["{{user_id}}"],
     },
   },
 ];
@@ -136,7 +136,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
 
   const modalBlocksWithUser = JSON.parse(JSON.stringify(modalBlocks));
   const resolverBlock = modalBlocksWithUser.find((block) => block.block_id === "resolved_by");
-  resolverBlock.element.initial_user = [body.user.id];
+  resolverBlock.element.initial_users = [body.user.id];
 
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -208,12 +208,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     }
 
     const reportFields = [
-      `*Reported Users:*\n${allUserIds
-        .map((id) => {
-          const cleanId = id.startsWith("<@") ? id.slice(2, -1).split("|")[0] : id;
-          return `<@${cleanId}>`;
-        })
-        .join(", ")}`,
+      `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${finalsolution}`,

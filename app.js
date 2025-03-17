@@ -170,14 +170,14 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     const banDate = values.ban_until.ban_date_input.selected_date;
 
     const dropdwnsolutions = values.solution_deets?.solution_select?.selected_options?.map((opt) => opt.value) || [];
-    const customsolution = values.solution_custom?.solution_custom_input?.value;
-    const finalsolution = customsolution || dropdwnsolutions.join(", ");
+    const customsolution = values.custom_solution?.solution_custom_input?.value;
+    const finalsolution = customsolution ? customsolution : dropdwnsolutions.length > 0 ? dropdwnsolutions.join(", ") : "";
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
     }
 
-    if (!finalsolution) {
+    if (!finalsolution || finalsolution.trim() === "") {
       throw new Error("Uhm you need to tell us how this was dealt with :P");
     }
 

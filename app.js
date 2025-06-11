@@ -14,9 +14,28 @@ const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 const NOTIF_CHANNEL = "C085UEFDW6R";
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
+const threadTracker = new Map();
 
 app.event("reaction_added", async ({ event, client }) => {
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
+
+  const threadKey = `${event.item.channel}-${event.item.ts}`;
+  if (!threadTracker.has(threadKey)) {
+    threadTracker.set(threadKey, {
+      channel: event.item.channel,
+      thread_ts: event.item.ts,
+      ban_reaction_time: Date.now(),
+      conduct_prompt_sent: false,
+      pending_message_sent: false,
+      pending_message_ts: null,
+      last_pending_msg_time: null,
+      report_filed: false,
+    });
+  }
+
+  const threadData = threadTracker.get(threadKey);
+  threadData.conduct_prompt_sent = true;
+  threadData.last_prompt_time = Date.now();
 
   await client.chat.postMessage({
     channel: event.item.channel,
@@ -122,7 +141,7 @@ const modalBlocks = [
     element: {
       type: "multi_users_select",
       action_id: "resolver_select",
-      initial_user: ["{{user_id}}"],
+      initial_users: ["{{user_id}}"],
     },
   },
 ];
@@ -136,7 +155,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
 
   const modalBlocksWithUser = JSON.parse(JSON.stringify(modalBlocks));
   const resolverBlock = modalBlocksWithUser.find((block) => block.block_id === "resolved_by");
-  resolverBlock.element.initial_user = [body.user.id];
+  resolverBlock.element.initial_users = [body.user.id];
 
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -170,26 +189,44 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     const banDate = values.ban_until.ban_date_input.selected_date;
 
     const dropdwnsolutions = values.solution_deets?.solution_select?.selected_options?.map((opt) => opt.value) || [];
-    const customsolution = values.solution_custom?.solution_custom_input?.value;
-    const finalsolution = customsolution || dropdwnsolutions.join(", ");
+    const customsolution = values.custom_solution?.solution_custom_input?.value;
+    const finalsolution = customsolution ? customsolution : dropdwnsolutions.length > 0 ? dropdwnsolutions.join(", ") : "";
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
     }
 
-    if (!finalsolution) {
+    if (!finalsolution || finalsolution.trim() === "") {
       throw new Error("Uhm you need to tell us how this was dealt with :P");
+    }
+
+    const threadKey = `${channel}-${thread_ts}`;
+    if (threadTracker.has(threadKey)) {
+      const threadData = threadTracker.get(threadKey);
+      threadData.report_filed = true;
+
+      await client.reactions.add({
+        channel,
+        timestamp: threadData.thread_ts,
+        name: "white_check_mark",
+      });
+      await client.reactions.remove({
+        channel,
+        timestamp: threadData.thread_ts,
+        name: "hourglass_flowing_sand",
+      });
+      await client.reactions.remove({
+        channel,
+        timestamp: threadData.thread_ts,
+        name: "bangbang",
+      });
     }
 
     for (const userId of allUserIds) {
       let displayName = "Unknown (Banned User)";
 
-      try {
-        const userProfile = await client.users.profile.get({ user: userId });
-        displayName = userProfile.profile.display_name || userProfile.profile.real_name;
-      } catch (error) {
-        console.log(`Couldn't fetch profile for ${userId}`);
-      }
+      const userProfile = await client.users.profile.get({ user: userId });
+      displayName = userProfile.profile.display_name || userProfile.profile.real_name;
 
       await base("LYLA Records").create([
         {
@@ -208,12 +245,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     }
 
     const reportFields = [
-      `*Reported Users:*\n${allUserIds
-        .map((id) => {
-          const cleanId = id.startsWith("<@") ? id.slice(2, -1).split("|")[0] : id;
-          return `<@${cleanId}>`;
-        })
-        .join(", ")}`,
+      `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${finalsolution}`,
@@ -464,7 +496,7 @@ async function checkBansForToday(client) {
     });
 
     await client.chat.postMessage({
-      channel: "G01DBHPLK25",
+      channel: ALLOWED_CHANNELS[0],
       text: "Unban awaiting!!",
       blocks: [
         {
@@ -478,6 +510,155 @@ async function checkBansForToday(client) {
     });
   }
 }
+
+async function checkPendingThreads(client) {
+  const now = Date.now();
+
+  for (const [threadKey, threadData] of threadTracker.entries()) {
+    if (threadData.report_filed) {
+      continue;
+    }
+
+    const lastTrigger = threadData.last_pending_msg_time || threadData.last_prompt_time || threadData.ban_reaction_time;
+    const timeSinceLastTrigger = now - lastTrigger;
+    const threeHours = 3 * 60 * 60 * 1000;
+    if (timeSinceLastTrigger >= threeHours) {
+      try {
+        const pendingMessage = await client.chat.postMessage({
+          channel: threadData.channel,
+          thread_ts: threadData.thread_ts,
+          text: "Pending…",
+          reply_broadcast: true,
+        });
+
+        threadData.pending_message_ts = pendingMessage.ts;
+        threadData.last_pending_msg_time = now;
+
+        await client.reactions.add({
+          channel: threadData.channel,
+          timestamp: threadData.thread_ts,
+          name: "bangbang",
+        });
+      } catch (error) {}
+    }
+  }
+
+  const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+  for (const [threadKey, threadData] of threadTracker.entries()) {
+    if (now - threadData.ban_reaction_time > SEVEN_DAYS) {
+      threadTracker.delete(threadKey);
+    }
+  }
+}
+
+app.event("message", async ({ event, client }) => {
+  if (event.channel !== ALLOWED_CHANNELS[0] || event.subtype || event.thread_ts) {
+    return;
+  }
+  await client.reactions.add({
+    channel: event.channel,
+    timestamp: event.ts,
+    name: "hourglass_flowing_sand",
+  });
+  const threadKey = `${event.channel}-${event.ts}`;
+  if (!threadTracker.has(threadKey)) {
+    threadTracker.set(threadKey, {
+      channel: event.channel,
+      thread_ts: event.ts,
+      ban_reaction_time: Date.now(),
+      conduct_prompt_sent: false,
+      pending_message_sent: false,
+      pending_message_ts: null,
+      last_pending_msg_time: null,
+      report_filed: false,
+    });
+  }
+});
+
+app.event("reaction_added", async ({ event, client }) => {
+  if (event.item.channel !== ALLOWED_CHANNELS[0]) return;
+
+  const reaction = event.reaction;
+  const isCancel = reaction === "x";
+  const isResolve = reaction === "heavy_check_mark" || reaction === "white_tick" || reaction === "white_check_mark" || reaction === "check";
+
+  if (!isCancel && !isResolve) {
+    return;
+  }
+
+  let threadKey = `${event.item.channel}-${event.item.ts}`;
+  if (!threadTracker.has(threadKey)) {
+    for (const [key, data] of threadTracker.entries()) {
+      if (data.pending_message_ts === event.item.ts && data.channel === event.item.channel) {
+        threadKey = key;
+        break;
+      }
+    }
+  }
+
+  if (!threadTracker.has(threadKey)) return;
+
+  const threadData = threadTracker.get(threadKey);
+
+  if (isCancel) {
+    threadTracker.delete(threadKey);
+    await client.reactions.remove({
+      channel: threadData.channel,
+      timestamp: threadData.thread_ts,
+      name: "hourglass_flowing_sand",
+    });
+    await client.reactions.remove({
+      channel: threadData.channel,
+      timestamp: threadData.thread_ts,
+      name: "bangbang",
+    });
+    return;
+  }
+
+  try {
+    const resolverId = event.user;
+    const permalinkResp = await client.chat.getPermalink({
+      channel: threadData.channel,
+      message_ts: threadData.thread_ts,
+    });
+
+    await base("LYLA Records").create([
+      {
+        fields: {
+          "Time Of Report": new Date().toISOString(),
+          "Dealt With By": resolverId,
+          "User Being Dealt With": "N/A",
+          "Display Name": "N/A",
+          "What Did User Do": "N/A",
+          "How Was This Resolved": "Resolved",
+          "If Banned, Until When": null,
+          "Link To Message": permalinkResp.permalink,
+        },
+      },
+    ]);
+
+    await client.reactions.add({
+      channel: threadData.channel,
+      timestamp: threadData.thread_ts,
+      name: "white_check_mark",
+    });
+  } catch (err) {
+    console.error("Failed to create quick resolved record", err);
+  }
+
+  await client.reactions.remove({
+    channel: threadData.channel,
+    timestamp: threadData.thread_ts,
+    name: "hourglass_flowing_sand",
+  });
+  await client.reactions.remove({
+    channel: threadData.channel,
+    timestamp: threadData.thread_ts,
+    name: "bangbang",
+  });
+
+  threadTracker.delete(threadKey);
+});
 
 (async () => {
   await app.start();
@@ -493,4 +674,8 @@ async function checkBansForToday(client) {
       await checkBansForToday(app.client);
     }
   );
+
+  schedule.scheduleJob("*/30 * * * * *", async () => {
+    await checkPendingThreads(app.client);
+  });
 })();

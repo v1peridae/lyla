@@ -17,6 +17,66 @@ const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env
 const threadTracker = new Map();
 
 app.event("reaction_added", async ({ event, client }) => {
+  if (ALLOWED_CHANNELS.includes(event.item.channel) && event.reaction === "hourglass_flowing_sand") {
+    const threadKey = `${event.item.channel}-${event.item.ts}`;
+    if (!threadTracker.has(threadKey)) {
+      threadTracker.set(threadKey, {
+        channel: event.item.channel,
+        thread_ts: event.item.ts,
+        ban_reaction_time: Date.now(),
+        conduct_prompt_sent: false,
+        pending_message_sent: false,
+        pending_message_ts: null,
+        last_pending_msg_time: null,
+        report_filed: false,
+      });
+    }
+  }
+
+  if (ALLOWED_CHANNELS.includes(event.item.channel) && event.reaction === "ban") {
+    const threadKey = `${event.item.channel}-${event.item.ts}`;
+    if (!threadTracker.has(threadKey)) {
+      threadTracker.set(threadKey, {
+        channel: event.item.channel,
+        thread_ts: event.item.ts,
+        ban_reaction_time: Date.now(),
+        conduct_prompt_sent: false,
+        pending_message_sent: false,
+        pending_message_ts: null,
+        last_pending_msg_time: null,
+        report_filed: false,
+      });
+    }
+
+    const threadData = threadTracker.get(threadKey);
+    threadData.conduct_prompt_sent = true;
+    threadData.last_prompt_time = Date.now();
+
+    await client.chat.postMessage({
+      channel: event.item.channel,
+      thread_ts: event.item.ts,
+      text: "Wanna file a conduct report?",
+      blocks: [
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "*Wanna file a conduct report?*" },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "File A Report Here", emoji: true },
+              action_id: "open_conduct_modal",
+              style: "primary",
+            },
+          ],
+        },
+      ],
+    });
+    return;
+  }
+
   if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
 
   const threadKey = `${event.item.channel}-${event.item.ts}`;

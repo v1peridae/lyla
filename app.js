@@ -580,30 +580,6 @@ async function checkPendingThreads(client) {
   }
 }
 
-app.event("message", async ({ event, client }) => {
-  if (event.channel !== ALLOWED_CHANNELS[0] || event.subtype || event.thread_ts) {
-    return;
-  }
-  await client.reactions.add({
-    channel: event.channel,
-    timestamp: event.ts,
-    name: "hourglass_flowing_sand",
-  });
-  const threadKey = `${event.channel}-${event.ts}`;
-  if (!threadTracker.has(threadKey)) {
-    threadTracker.set(threadKey, {
-      channel: event.channel,
-      thread_ts: event.ts,
-      ban_reaction_time: Date.now(),
-      conduct_prompt_sent: false,
-      pending_message_sent: false,
-      pending_message_ts: null,
-      last_pending_msg_time: null,
-      report_filed: false,
-    });
-  }
-});
-
 app.event("reaction_added", async ({ event, client }) => {
   if (event.item.channel !== ALLOWED_CHANNELS[0]) return;
 

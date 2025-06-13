@@ -11,8 +11,8 @@ const app = new App({
 });
 
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
-const ALLOWED_CHANNELS = ["C07UBURESHZ"];
-const NOTIF_CHANNEL = "C07UBURESHZ";
+const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
+const NOTIF_CHANNEL = "C085UEFDW6R";
 const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
 const threadTracker = new Map();
 
@@ -609,7 +609,7 @@ async function checkPendingThreads(client) {
     if (hasHourglass) {
       const lastTrigger = threadData.last_pending_msg_time || threadData.last_prompt_time || threadData.ban_reaction_time;
       const timeSinceLastTrigger = now - lastTrigger;
-      const threeHours = 60 * 1000;
+      const threeHours = 3 * 60 * 60 * 1000;
       if (timeSinceLastTrigger >= threeHours) {
         try {
           const pendingMessage = await client.chat.postMessage({

@@ -665,13 +665,8 @@ app.event("reaction_added", async ({ event, client }) => {
 
   const threadData = threadTracker.get(threadKey);
 
-  if (isCancel) {
+  if (isCancel || isResolve) {
     threadTracker.delete(threadKey);
-    await client.reactions.remove({
-      channel: threadData.channel,
-      timestamp: threadData.thread_ts,
-      name: "hourglass_flowing_sand",
-    });
     await client.reactions.remove({
       channel: threadData.channel,
       timestamp: threadData.thread_ts,
@@ -679,19 +674,6 @@ app.event("reaction_added", async ({ event, client }) => {
     });
     return;
   }
-
-  await client.reactions.remove({
-    channel: threadData.channel,
-    timestamp: threadData.thread_ts,
-    name: "hourglass_flowing_sand",
-  });
-  await client.reactions.remove({
-    channel: threadData.channel,
-    timestamp: threadData.thread_ts,
-    name: "bangbang",
-  });
-
-  threadTracker.delete(threadKey);
 });
 
 (async () => {

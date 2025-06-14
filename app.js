@@ -485,7 +485,6 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
 
       return mentions.join(", ");
     };
-
     const reportEntries = await Promise.all(
       records.map(async (record) => {
         const fields = record.fields;
@@ -494,9 +493,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
           month: "short",
           year: "numeric",
         });
-
         const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
-
         let reportText = `*Report from ${date}*
 *Dealt With By:* ${dealtWithBy}
 *What Did User Do:* ${fields["What Did User Do"]}

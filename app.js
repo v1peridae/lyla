@@ -270,16 +270,29 @@ app.view("conduct_report", async ({ ack, view, client }) => {
         timestamp: threadData.thread_ts,
         name: "white_check_mark",
       });
-      await client.reactions.remove({
-        channel,
-        timestamp: threadData.thread_ts,
-        name: "hourglass_flowing_sand",
-      });
-      await client.reactions.remove({
-        channel,
-        timestamp: threadData.thread_ts,
-        name: "bangbang",
-      });
+
+      try {
+        const repliesResp = await client.conversations.replies({
+          channel: threadData.channel,
+          ts: threadData.thread_ts,
+          limit: 1,
+          inclusive: true,
+        });
+        const rootMsg = repliesResp.messages && repliesResp.messages[0];
+
+        if (rootMsg && rootMsg.reactions) {
+          const reactions = rootMsg.reactions.map((r) => r.name);
+          if (reactions.includes("bangbang")) {
+            await client.reactions.remove({
+              channel,
+              timestamp: threadData.thread_ts,
+              name: "bangbang",
+            });
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      }
     }
 
     for (const userId of allUserIds) {
@@ -579,7 +592,7 @@ async function checkPendingThreads(client) {
       continue;
     }
 
-    let rootMessage;
+    let rootMsg;
     try {
       const repliesResp = await client.conversations.replies({
         channel: threadData.channel,
@@ -587,13 +600,13 @@ async function checkPendingThreads(client) {
         limit: 1,
         inclusive: true,
       });
-      rootMessage = repliesResp.messages && repliesResp.messages[0];
+      rootMsg = repliesResp.messages && repliesResp.messages[0];
     } catch (err) {
       continue;
     }
-    if (!rootMessage || !rootMessage.reactions) continue;
+    if (!rootMsg || !rootMsg.reactions) continue;
 
-    const reactions = rootMessage.reactions.map((r) => r.name);
+    const reactions = rootMsg.reactions.map((r) => r.name);
     const hasHourglass = reactions.includes("hourglass_flowing_sand") || reactions.includes("hourglass");
     const hasTick = tickReactions.some((tick) => reactions.includes(tick));
     const hasX = xReactions.some((x) => reactions.includes(x));

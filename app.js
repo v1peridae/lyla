@@ -420,34 +420,28 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         response_type: "ephemeral",
       });
     }
-    const messageBlocks = await Promise.all(
-      filteredMessages.map(async (match) => {
-        const permalinkResp = await client.chat.getPermalink({
-          channel: match.channel.id,
-          message_ts: match.ts,
-        });
-        const messageDate = new Date(parseFloat(match.ts) * 1000);
-        const formattedDate = messageDate.toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
-        const formattedTime = messageDate.toLocaleString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-        const timestamp = `${formattedDate} at ${formattedTime}`;
-        const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
-        return {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*Message from: ${timestamp}*\n${shortenedText}\n<${permalinkResp.permalink}|View full message>`,
-          },
-        };
-      })
-    );
+    const messageBlocks = filteredMessages.map((match) => {
+      const messageDate = new Date(parseFloat(match.ts) * 1000);
+      const formattedDate = messageDate.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      const formattedTime = messageDate.toLocaleString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const timestamp = `${formattedDate} at ${formattedTime}`;
+      const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+      return {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Message from: ${timestamp}*\n${shortenedText}\n<${match.permalink}|View full message>`,
+        },
+      };
+    });
 
     await respond({
       text: `Most recent Slack messages mentioning ${userId}`,
@@ -480,42 +474,30 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
       });
     }
 
-    const formatUserMentions = async (userIds, client) => {
+    const formatUserMentions = (userIds) => {
       if (!userIds) return "";
-      const uids = userIds
-        .replace(/[<@>]/g, "")
+      return userIds
         .split(",")
-        .map((id) => id.trim());
-      const mentions = [];
-      for (const uid of uids) {
-        try {
-          const result = await client.users.info({ user: uid });
-          mentions.push(`@${result.user.name}`);
-        } catch (error) {
-          mentions.push(uid);
-        }
-      }
-
-      return mentions.join(", ");
+        .map((id) => id.trim())
+        .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
+        .join(", ");
     };
-    const reportEntries = await Promise.all(
-      records.map(async (record) => {
-        const fields = record.fields;
-        const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
-        const dealtWithBy = await formatUserMentions(fields["Dealt With By"], client);
-        let reportText = `*Report from ${date}*
+    const reportEntries = records.map((record) => {
+      const fields = record.fields;
+      const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      const dealtWithBy = formatUserMentions(fields["Dealt With By"]);
+      let reportText = `*Report from ${date}*
 *Dealt With By:* ${dealtWithBy}
 *What Did User Do:* ${fields["What Did User Do"]}
 *How Was This Resolved:* ${fields["How Was This Resolved"]}
 <${fields["Link To Message"]}|View Message>`;
 
-        return reportText;
-      })
-    );
+      return reportText;
+    });
 
     const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
 

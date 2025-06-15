@@ -619,12 +619,16 @@ async function checkPendingThreads(client) {
           threadData.pending_message_ts = pendingMessage.ts;
           threadData.last_pending_msg_time = now;
 
-          await client.reactions.add({
-            channel: threadData.channel,
-            timestamp: threadData.thread_ts,
-            name: "bangbang",
-          });
-        } catch (error) {}
+          if (!reactions.includes("bangbang")) {
+            await client.reactions.add({
+              channel: threadData.channel,
+              timestamp: threadData.thread_ts,
+              name: "bangbang",
+            });
+          }
+        } catch (error) {
+          console.error(error);
+        }
       }
     }
   }

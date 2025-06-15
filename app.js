@@ -17,7 +17,7 @@ const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env
 const threadTracker = new Map();
 
 app.event("reaction_added", async ({ event, client }) => {
-  if (ALLOWED_CHANNELS.includes(event.item.channel) && event.reaction === "hourglass_flowing_sand") {
+  if (ALLOWED_CHANNELS.includes(event.item.channel) && (event.reaction === "hourglass_flowing_sand" || event.reaction === "hourglass")) {
     const threadKey = `${event.item.channel}-${event.item.ts}`;
     if (!threadTracker.has(threadKey)) {
       threadTracker.set(threadKey, {
@@ -594,7 +594,7 @@ async function checkPendingThreads(client) {
     if (!rootMessage || !rootMessage.reactions) continue;
 
     const reactions = rootMessage.reactions.map((r) => r.name);
-    const hasHourglass = reactions.includes("hourglass_flowing_sand");
+    const hasHourglass = reactions.includes("hourglass_flowing_sand") || reactions.includes("hourglass");
     const hasTick = tickReactions.some((tick) => reactions.includes(tick));
     const hasX = xReactions.some((x) => reactions.includes(x));
 

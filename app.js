@@ -17,7 +17,9 @@ const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env
 const threadTracker = new Map();
 
 app.event("reaction_added", async ({ event, client }) => {
-  if (ALLOWED_CHANNELS.includes(event.item.channel) && (event.reaction === "hourglass_flowing_sand" || event.reaction === "hourglass")) {
+  const hourglassEmojis = ["hourglass", "hourglass_flowing_sand", "hourglass_not_done"];
+
+  if (ALLOWED_CHANNELS.includes(event.item.channel) && hourglassEmojis.includes(event.reaction)) {
     const threadKey = `${event.item.channel}-${event.item.ts}`;
     if (!threadTracker.has(threadKey)) {
       threadTracker.set(threadKey, {
@@ -264,12 +266,6 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     if (threadTracker.has(threadKey)) {
       const threadData = threadTracker.get(threadKey);
       threadData.report_filed = true;
-
-      await client.reactions.add({
-        channel,
-        timestamp: threadData.thread_ts,
-        name: "white_check_mark",
-      });
 
       try {
         const repliesResp = await client.conversations.replies({
@@ -567,6 +563,7 @@ async function checkBansForToday(client) {
 async function checkPendingThreads(client) {
   const now = Date.now();
 
+  const hourglassEmojis = ["hourglass", "hourglass_flowing_sand", "hourglass_not_done"];
   const tickReactions = ["heavy_check_mark", "white_tick", "white_check_mark", "check"];
   const xReactions = ["x"];
 
@@ -590,7 +587,7 @@ async function checkPendingThreads(client) {
     if (!rootMsg || !rootMsg.reactions) continue;
 
     const reactions = rootMsg.reactions.map((r) => r.name);
-    const hasHourglass = reactions.includes("hourglass_flowing_sand") || reactions.includes("hourglass");
+    const hasHourglass = reactions.some((r) => hourglassEmojis.includes(r));
     const hasTick = tickReactions.some((tick) => reactions.includes(tick));
     const hasX = xReactions.some((x) => reactions.includes(x));
 

@@ -7,7 +7,9 @@
     "@slack/bolt": "^3.17.0",
     "airtable": "^0.12.2",
     "dotenv": "^16.0.0",
-    "node-schedule": "^2.1.1"
+    "node-schedule": "^2.1.1",
+    "@keyv/postgres": "^2.1.6",
+    "keyv": "^5.3.4"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

@@ -6,7 +6,9 @@ require("dotenv").config();
 const Keyv = require("keyv");
 const KeyvPostgres = require("@keyv/postgres");
 
-const keyv = new Keyv(new KeyvPostgres(process.env.PG_CONNECTION_STRING));
+const keyv = new Keyv({
+  store: new KeyvPostgres(process.env.PG_CONNECTION_STRING)
+});
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,

@@ -3,6 +3,10 @@ const { WebClient } = require("@slack/web-api");
 const Airtable = require("airtable");
 const schedule = require("node-schedule");
 require("dotenv").config();
+const Keyv = require("keyv");
+const KeyvPostgres = require("@keyv/postgres");
+
+const keyv = new Keyv(new KeyvPostgres(process.env.PG_CONNECTION_STRING));
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -13,13 +17,22 @@ const app = new App({
 const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
 const ALLOWED_CHANNELS = ["G01DBHPLK25", "C07FL3G62LF", "C07UBURESHZ"];
 const NOTIF_CHANNEL = "C085UEFDW6R";
-const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(process.env.AIRTABLE_BASE_ID);
+const base = new Airtable({ apiKey: process.env.AIRTABLE_PAT }).base(
+  process.env.AIRTABLE_BASE_ID
+);
 const threadTracker = new Map();
 
 app.event("reaction_added", async ({ event, client }) => {
-  const hourglassEmojis = ["hourglass", "hourglass_flowing_sand", "hourglass_not_done"];
+  const hourglassEmojis = [
+    "hourglass",
+    "hourglass_flowing_sand",
+    "hourglass_not_done",
+  ];
 
-  if (ALLOWED_CHANNELS.includes(event.item.channel) && hourglassEmojis.includes(event.reaction)) {
+  if (
+    ALLOWED_CHANNELS.includes(event.item.channel) &&
+    hourglassEmojis.includes(event.reaction)
+  ) {
     const threadKey = `${event.item.channel}-${event.item.ts}`;
     if (!threadTracker.has(threadKey)) {
       threadTracker.set(threadKey, {
@@ -35,7 +48,10 @@ app.event("reaction_added", async ({ event, client }) => {
     }
   }
 
-  if (ALLOWED_CHANNELS.includes(event.item.channel) && event.reaction === "ban") {
+  if (
+    ALLOWED_CHANNELS.includes(event.item.channel) &&
+    event.reaction === "ban"
+  ) {
     const threadKey = `${event.item.channel}-${event.item.ts}`;
     if (!threadTracker.has(threadKey)) {
       threadTracker.set(threadKey, {
@@ -68,7 +84,11 @@ app.event("reaction_added", async ({ event, client }) => {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "File A Report Here", emoji: true },
+              text: {
+                type: "plain_text",
+                text: "File A Report Here",
+                emoji: true,
+              },
               action_id: "open_conduct_modal",
               style: "primary",
             },
@@ -79,7 +99,11 @@ app.event("reaction_added", async ({ event, client }) => {
     return;
   }
 
-  if (!ALLOWED_CHANNELS.includes(event.item.channel) || event.reaction !== "ban") return;
+  if (
+    !ALLOWED_CHANNELS.includes(event.item.channel) ||
+    event.reaction !== "ban"
+  )
+    return;
 
   const threadKey = `${event.item.channel}-${event.item.ts}`;
   if (!threadTracker.has(threadKey)) {
@@ -113,7 +137,11 @@ app.event("reaction_added", async ({ event, client }) => {
         elements: [
           {
             type: "button",
-            text: { type: "plain_text", text: "File A Report Here", emoji: true },
+            text: {
+              type: "plain_text",
+              text: "File A Report Here",
+              emoji: true,
+            },
             action_id: "open_conduct_modal",
             style: "primary",
           },
@@ -137,7 +165,10 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "banned_user_ids",
-    label: { type: "plain_text", text: "User ID - Separate multiple with commas" },
+    label: {
+      type: "plain_text",
+      text: "User ID - Separate multiple with commas",
+    },
     element: {
       type: "plain_text_input",
       action_id: "banned_ids_input",
@@ -168,7 +199,10 @@ const modalBlocks = [
         { text: { type: "plain_text", text: "DM" }, value: "DM" },
         { text: { type: "plain_text", text: "Warning" }, value: "Warning" },
         { text: { type: "plain_text", text: "Shush" }, value: "Shush" },
-        { text: { type: "plain_text", text: "Locked Thread" }, value: "Locked Thread" },
+        {
+          text: { type: "plain_text", text: "Locked Thread" },
+          value: "Locked Thread",
+        },
       ],
     },
     optional: true,
@@ -199,7 +233,10 @@ const modalBlocks = [
   {
     type: "input",
     block_id: "resolved_by",
-    label: { type: "plain_text", text: "Who Resolved This? (Thank you btw <3)" },
+    label: {
+      type: "plain_text",
+      text: "Who Resolved This? (Thank you btw <3)",
+    },
     element: {
       type: "multi_users_select",
       action_id: "resolver_select",
@@ -216,7 +253,9 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
   });
 
   const modalBlocksWithUser = JSON.parse(JSON.stringify(modalBlocks));
-  const resolverBlock = modalBlocksWithUser.find((block) => block.block_id === "resolved_by");
+  const resolverBlock = modalBlocksWithUser.find(
+    (block) => block.block_id === "resolved_by"
+  );
   resolverBlock.element.initial_users = [body.user.id];
 
   await client.views.open({
@@ -242,17 +281,27 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     const values = view.state.values;
     const { channel, thread_ts, permalink } = JSON.parse(view.private_metadata);
 
-    const selectedUsers = values.reported_users.users_select.selected_users || [];
+    const selectedUsers =
+      values.reported_users.users_select.selected_users || [];
     const bannedUserIds = values.banned_user_ids.banned_ids_input.value
-      ? values.banned_user_ids.banned_ids_input.value.split(",").map((id) => id.trim())
+      ? values.banned_user_ids.banned_ids_input.value
+          .split(",")
+          .map((id) => id.trim())
       : [];
 
     const allUserIds = [...selectedUsers, ...bannedUserIds];
     const banDate = values.ban_until.ban_date_input.selected_date;
 
-    const dropdwnsolutions = values.solution_deets?.solution_select?.selected_options?.map((opt) => opt.value) || [];
+    const dropdwnsolutions =
+      values.solution_deets?.solution_select?.selected_options?.map(
+        (opt) => opt.value
+      ) || [];
     const customsolution = values.custom_solution?.solution_custom_input?.value;
-    const finalsolution = customsolution ? customsolution : dropdwnsolutions.length > 0 ? dropdwnsolutions.join(", ") : "";
+    const finalsolution = customsolution
+      ? customsolution
+      : dropdwnsolutions.length > 0
+      ? dropdwnsolutions.join(", ")
+      : "";
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
@@ -295,16 +344,19 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       let displayName = "Unknown (Banned User)";
 
       const userProfile = await client.users.profile.get({ user: userId });
-      displayName = userProfile.profile.display_name || userProfile.profile.real_name;
+      displayName =
+        userProfile.profile.display_name || userProfile.profile.real_name;
 
       await base("LYLA Records").create([
         {
           fields: {
             "Time Of Report": new Date().toISOString(),
-            "Dealt With By": values.resolved_by.resolver_select.selected_users.join(", "),
+            "Dealt With By":
+              values.resolved_by.resolver_select.selected_users.join(", "),
             "User Being Dealt With": userId,
             "Display Name": displayName,
-            "What Did User Do": values.violation_deets.violation_deets_input.value,
+            "What Did User Do":
+              values.violation_deets.violation_deets_input.value,
             "How Was This Resolved": finalsolution,
             "If Banned, Until When": banDate || null,
             "Link To Message": permalink,
@@ -314,13 +366,19 @@ app.view("conduct_report", async ({ ack, view, client }) => {
     }
 
     const reportFields = [
-      `*Reported Users:*\n${allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ")}`,
-      `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users.map((user) => `<@${user}>`).join(", ")}`,
+      `*Reported Users:*\n${allUserIds
+        .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
+        .join(", ")}`,
+      `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users
+        .map((user) => `<@${user}>`)
+        .join(", ")}`,
       `*What Did They Do?*\n${values.violation_deets.violation_deets_input.value}`,
       `*How Did We Deal With This?*\n${finalsolution}`,
       `*If Banned or Shushed, Until:*\n${
         values.ban_until.ban_date_input.selected_date
-          ? new Date(values.ban_until.ban_date_input.selected_date).toLocaleDateString("en-GB", {
+          ? new Date(
+              values.ban_until.ban_date_input.selected_date
+            ).toLocaleDateString("en-GB", {
               day: "numeric",
               month: "short",
               year: "numeric",
@@ -346,7 +404,9 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       ],
     });
     if (banDate || finalsolution.toLowerCase().includes("perma")) {
-      const userMention = allUserIds.map((id) => `<@${id.replace(/[<@>]/g, "")}>`).join(", ");
+      const userMention = allUserIds
+        .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
+        .join(", ");
 
       let notifmsg;
       if (finalsolution.toLowerCase().includes("perma")) {
@@ -358,7 +418,9 @@ app.view("conduct_report", async ({ ack, view, client }) => {
           year: "numeric",
         });
 
-        const action = finalsolution.toLowerCase().includes("shush") ? "shushed" : "banned";
+        const action = finalsolution.toLowerCase().includes("shush")
+          ? "shushed"
+          : "banned";
         notifmsg = `${userMention} has been ${action} until ${dateFormat}... be good kids ^^`;
       }
 
@@ -389,7 +451,9 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         response_type: "ephemeral",
       });
     }
-    const cleanUserId = userId.startsWith("<@") ? userId.slice(2, -1).split("|")[0] : userId.replace(/[<@>]/g, "");
+    const cleanUserId = userId.startsWith("<@")
+      ? userId.slice(2, -1).split("|")[0]
+      : userId.replace(/[<@>]/g, "");
     if (source.toLowerCase() === "slack") {
       const msgSearch = await userClient.search.messages({
         query: `in:#hq-firehouse <@${cleanUserId}>`,
@@ -404,7 +468,9 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         return mentionsUser || !isThreadMessage;
       });
       allMessages.sort((a, b) => parseFloat(b.ts) - parseFloat(a.ts));
-      const filteredMessages = allMessages.filter((match) => ALLOWED_CHANNELS.includes(match.channel.id)).slice(0, 20);
+      const filteredMessages = allMessages
+        .filter((match) => ALLOWED_CHANNELS.includes(match.channel.id))
+        .slice(0, 20);
       if (!filteredMessages.length) {
         return await respond({
           text: `No previous messages mentioning ${userId} found in Slack :)`,
@@ -424,7 +490,10 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
           hour12: true,
         });
         const timestamp = `${formattedDate} at ${formattedTime}`;
-        const shortenedText = match.text.length > 200 ? match.text.substring(0, 200) + "..." : match.text;
+        const shortenedText =
+          match.text.length > 200
+            ? match.text.substring(0, 200) + "..."
+            : match.text;
         return {
           type: "section",
           text: {
@@ -474,11 +543,14 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
       };
       const reportEntries = records.map((record) => {
         const fields = record.fields;
-        const date = new Date(fields["Time Of Report"]).toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        });
+        const date = new Date(fields["Time Of Report"]).toLocaleDateString(
+          "en-GB",
+          {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }
+        );
         const dealtWithBy = formatUserMentions(fields["Dealt With By"]);
         let reportText = `*Report from ${date}*
 *Dealt With By:* ${dealtWithBy}
@@ -489,7 +561,9 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
         return reportText;
       });
 
-      const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join("\n\n")}`;
+      const messageText = `Airtable records for ${userId}:\n\n${reportEntries.join(
+        "\n\n"
+      )}`;
 
       await respond({
         text: messageText,
@@ -536,7 +610,9 @@ async function checkBansForToday(client) {
   if (records.length > 0) {
     const banMessages = records.map((record) => {
       const userId = record.fields["User Being Dealt With"];
-      const banEndDate = new Date(record.fields["If Banned, Until When"]).toLocaleDateString("en-GB", {
+      const banEndDate = new Date(
+        record.fields["If Banned, Until When"]
+      ).toLocaleDateString("en-GB", {
         day: "numeric",
         month: "short",
         year: "numeric",
@@ -563,8 +639,17 @@ async function checkBansForToday(client) {
 async function checkPendingThreads(client) {
   const now = Date.now();
 
-  const hourglassEmojis = ["hourglass", "hourglass_flowing_sand", "hourglass_not_done"];
-  const tickReactions = ["heavy_check_mark", "white_tick", "white_check_mark", "check"];
+  const hourglassEmojis = [
+    "hourglass",
+    "hourglass_flowing_sand",
+    "hourglass_not_done",
+  ];
+  const tickReactions = [
+    "heavy_check_mark",
+    "white_tick",
+    "white_check_mark",
+    "check",
+  ];
   const xReactions = ["x"];
 
   for (const [threadKey, threadData] of threadTracker.entries()) {
@@ -597,7 +682,10 @@ async function checkPendingThreads(client) {
     }
 
     if (hasHourglass) {
-      const lastTrigger = threadData.last_pending_msg_time || threadData.last_prompt_time || threadData.ban_reaction_time;
+      const lastTrigger =
+        threadData.last_pending_msg_time ||
+        threadData.last_prompt_time ||
+        threadData.ban_reaction_time;
       const timeSinceLastTrigger = now - lastTrigger;
       const fiveHours = 5 * 60 * 60 * 1000;
       if (timeSinceLastTrigger >= fiveHours) {
@@ -639,7 +727,11 @@ app.event("reaction_added", async ({ event, client }) => {
 
   const reaction = event.reaction;
   const isCancel = reaction === "x";
-  const isResolve = reaction === "heavy_check_mark" || reaction === "white_tick" || reaction === "white_check_mark" || reaction === "check";
+  const isResolve =
+    reaction === "heavy_check_mark" ||
+    reaction === "white_tick" ||
+    reaction === "white_check_mark" ||
+    reaction === "check";
 
   if (!isCancel && !isResolve) {
     return;
@@ -648,7 +740,10 @@ app.event("reaction_added", async ({ event, client }) => {
   let threadKey = `${event.item.channel}-${event.item.ts}`;
   if (!threadTracker.has(threadKey)) {
     for (const [key, data] of threadTracker.entries()) {
-      if (data.pending_message_ts === event.item.ts && data.channel === event.item.channel) {
+      if (
+        data.pending_message_ts === event.item.ts &&
+        data.channel === event.item.channel
+      ) {
         threadKey = key;
         break;
       }
@@ -687,5 +782,7 @@ app.event("reaction_added", async ({ event, client }) => {
 
   schedule.scheduleJob("*/30 * * * * *", async () => {
     await checkPendingThreads(app.client);
+    // hackatime ban chekerio
+    require("./hackatime_log")(app, keyv);
   });
 })();

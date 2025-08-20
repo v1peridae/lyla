@@ -4,10 +4,12 @@ const Airtable = require("airtable");
 const schedule = require("node-schedule");
 require("dotenv").config();
 const Keyv = require("keyv");
-const KeyvPostgres = require("@keyv/postgres");
+const KeyvPostgres = require("@keyv/postgres").default;
 
 const keyv = new Keyv({
-  store: new KeyvPostgres(process.env.PG_CONNECTION_STRING)
+  store: new KeyvPostgres({
+    connectionString: process.env.PG_CONNECTION_STRING
+  })
 });
 
 const app = new App({

@@ -63,8 +63,17 @@ module.exports = (app, db) => {
         "SELECT tla.*, u1.slack_uid  AS user_slack_uid, u2.slack_uid  AS changed_by_slack_uid FROM trust_level_audit_logs AS tla JOIN users AS u1 ON u1.id = tla.user_id JOIN users AS u2 ON u2.id = tla.changed_by_id WHERE tla.new_trust_level = 'red'  ORDER BY tla.id DESC;",
     }),
   })
-    .then((d) => d.json())
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`status: ${response.status}`);
+      }
+      return response.json();
+    })
     .then(async (data) => {
+      if (!data || !data.rows || !Array.isArray(data.rows)) {
+        console.log("hackatime data messed up:", data);
+        return;
+      }
       for (const row of data.rows.reverse()) {
         if (await db.get("hackatime_log_" + row.id[1])) {
           continue; // Skip if already logged
@@ -78,5 +87,8 @@ module.exports = (app, db) => {
         await db.set("hackatime_log_" + row.id[1], true);
         await new Promise((r) => setTimeout(r, 1500)); // Rate limit
       }
+    })
+    .catch((error) => {
+      console.error("error fetching hackatime data:", error);
     });
 };

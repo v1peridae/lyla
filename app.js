@@ -3,7 +3,7 @@ const { WebClient } = require("@slack/web-api");
 const Airtable = require("airtable");
 const schedule = require("node-schedule");
 require("dotenv").config();
-const Keyv = require("keyv");
+const { Keyv } = require("keyv");
 const KeyvPostgres = require("@keyv/postgres").default;
 
 const keyv = new Keyv({

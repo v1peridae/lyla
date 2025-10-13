@@ -246,16 +246,6 @@ const modalBlocks = [
   },
   {
     type: "input",
-    block_id: "reporter_email",
-    label: { type: "plain_text", text: "Your Email" },
-    element: {
-      type: "plain_text_input",
-      action_id: "reporter_email_input",
-    },
-    optional: true,
-  },
-  {
-    type: "input",
     block_id: "resolved_by",
     label: {
       type: "plain_text",

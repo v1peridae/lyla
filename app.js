@@ -565,6 +565,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
           .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
           .join(", ");
       };
+      
       const reportEntries = records.map((record) => {
         const fields = record.fields;
         const date = new Date(fields["Time Of Report"]).toLocaleDateString(

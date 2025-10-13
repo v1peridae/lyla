@@ -236,6 +236,26 @@ const modalBlocks = [
   },
   {
     type: "input",
+    block_id: "reporter_name",
+    label: { type: "plain_text", text: "Reported User's Name" },
+    element: {
+      type: "plain_text_input",
+      action_id: "reporter_name_input",
+    },
+    optional: true,
+  },
+  {
+    type: "input",
+    block_id: "reporter_email",
+    label: { type: "plain_text", text: "Your Email" },
+    element: {
+      type: "plain_text_input",
+      action_id: "reporter_email_input",
+    },
+    optional: true,
+  },
+  {
+    type: "input",
     block_id: "resolved_by",
     label: {
       type: "plain_text",
@@ -261,6 +281,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
     (block) => block.block_id === "resolved_by"
   );
   resolverBlock.element.initial_users = [body.user.id];
+ 
 
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -306,6 +327,11 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       : dropdwnsolutions.length > 0
       ? dropdwnsolutions.join(", ")
       : "";
+
+    const reporterName = values.reporter_name?.reporter_name_input?.value || "";
+    const targetedUser = await userClient.users.info({user: allUserIds[0]})
+    const reporterEmail = targetedUser.user?.profile?.email || "";
+ 
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
@@ -364,6 +390,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
             "How Was This Resolved": finalsolution,
             "If Banned, Until When": banDate || null,
             "Link To Message": permalink,
+            "Name": reporterName,
+            "Email": reporterEmail,
           },
         },
       ]);
@@ -373,6 +401,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Reported Users:*\n${allUserIds
         .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
         .join(", ")}`,
+        `*Reported User's Name:*\n${reporterName || "N/A"}`,
+        `*Reporter Email:*\n${reporterEmail || "N/A"}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users
         .map((user) => `<@${user}>`)
         .join(", ")}`,

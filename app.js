@@ -807,7 +807,5 @@ app.event("reaction_added", async ({ event, client }) => {
 
   schedule.scheduleJob("*/30 * * * * *", async () => {
     await checkPendingThreads(app.client);
-    // hackatime ban chekerio
-    require("./hackatime_log")(app, keyv);
   });
 })();

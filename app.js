@@ -103,6 +103,45 @@ app.event("reaction_added", async ({ event, client }) => {
     return;
   }
 
+
+  if (event.reaction === "bangbang" && ALLOWED_CHANNELS.includes(event.item.channel)) {
+    try{
+      const messageResp = await client.conversations.history({
+        channel: event.item.channel,
+        latest: event.item.ts,
+        limit: 1,
+        inclusive: true,
+      });
+
+      if (!messageResp.messages || messageResp.messages.length === 0) {
+        return;
+      }
+
+      const message = messageResp.messages[0];
+      const threadTs = message.thread_ts ? message.thread_ts : message.ts; // Use full ts values
+
+      const repliesResp = await client.conversations.replies({
+        channel: event.item.channel,
+        ts: threadTs,
+        limit: 2,
+        inclusive: true,
+      });
+
+      if (repliesResp.messages && repliesResp.messages.length === 1) {
+        await client.chat.postMessage({
+          channel: event.item.channel,
+          text: "This thread needs attention!",
+          thread_ts: threadTs,
+          reply_broadcast: true,
+        });
+      } else {
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+    return;
+  }
+
   if (
     !ALLOWED_CHANNELS.includes(event.item.channel) ||
     event.reaction !== "ban"
@@ -236,11 +275,11 @@ const modalBlocks = [
   },
   {
     type: "input",
-    block_id: "reporter_name",
+    block_id: "reported_user_name",
     label: { type: "plain_text", text: "Reported User's Name" },
     element: {
       type: "plain_text_input",
-      action_id: "reporter_name_input",
+      action_id: "reported_user_name_input",
     },
     optional: true,
   },
@@ -318,9 +357,9 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       ? dropdwnsolutions.join(", ")
       : "";
 
-    const reporterName = values.reporter_name?.reporter_name_input?.value || "";
+    const reportedUserName = values.reported_user_name?.reported_user_name_input?.value || "";
     const targetedUser = await userClient.users.info({user: allUserIds[0]})
-    const reporterEmail = targetedUser.user?.profile?.email || "";
+    const reportedUserEmail = targetedUser.user?.profile?.email || "";
  
 
     if (allUserIds.length === 0) {
@@ -380,8 +419,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
             "How Was This Resolved": finalsolution,
             "If Banned, Until When": banDate || null,
             "Link To Message": permalink,
-            "Name": reporterName,
-            "Email": reporterEmail,
+            "Name": reportedUserName,
+            "Email": reportedUserEmail,
           },
         },
       ]);
@@ -391,8 +430,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Reported Users:*\n${allUserIds
         .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
         .join(", ")}`,
-        `*Reported User's Name:*\n${reporterName || "N/A"}`,
-        `*Reporter Email:*\n${reporterEmail || "N/A"}`,
+        `*Reported User's Name:*\n${reportedUserName || "N/A"}`,
+        `*Reported User's Email:*\n${reportedUserEmail || "N/A"}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users
         .map((user) => `<@${user}>`)
         .join(", ")}`,

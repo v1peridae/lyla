@@ -103,6 +103,45 @@ app.event("reaction_added", async ({ event, client }) => {
     return;
   }
 
+
+  if (event.reaction === "bangbang" && ALLOWED_CHANNELS.includes(event.item.channel)) {
+    try{
+      const messageResp = await client.conversations.history({
+        channel: event.item.channel,
+        latest: event.item.ts,
+        limit: 1,
+        inclusive: true,
+      });
+
+      if (!messageResp.messages || messageResp.messages.length === 0) {
+        return;
+      }
+
+      const message = messageResp.messages[0];
+      const threadTs = message.thread_ts ? message.thread_ts : message.ts; // Use full ts values
+
+      const repliesResp = await client.conversations.replies({
+        channel: event.item.channel,
+        ts: threadTs,
+        limit: 2,
+        inclusive: true,
+      });
+
+      if (repliesResp.messages && repliesResp.messages.length === 1) {
+        await client.chat.postMessage({
+          channel: event.item.channel,
+          text: "This thread needs attention!",
+          thread_ts: threadTs,
+          reply_broadcast: true,
+        });
+      } else {
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+    return;
+  }
+
   if (
     !ALLOWED_CHANNELS.includes(event.item.channel) ||
     event.reaction !== "ban"
@@ -236,6 +275,16 @@ const modalBlocks = [
   },
   {
     type: "input",
+    block_id: "reported_user_name",
+    label: { type: "plain_text", text: "Reported User's Name" },
+    element: {
+      type: "plain_text_input",
+      action_id: "reported_user_name_input",
+    },
+    optional: true,
+  },
+  {
+    type: "input",
     block_id: "resolved_by",
     label: {
       type: "plain_text",
@@ -261,6 +310,7 @@ app.action("open_conduct_modal", async ({ ack, body, client }) => {
     (block) => block.block_id === "resolved_by"
   );
   resolverBlock.element.initial_users = [body.user.id];
+ 
 
   await client.views.open({
     trigger_id: body.trigger_id,
@@ -306,6 +356,11 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       : dropdwnsolutions.length > 0
       ? dropdwnsolutions.join(", ")
       : "";
+
+    const reportedUserName = values.reported_user_name?.reported_user_name_input?.value || "";
+    const targetedUser = await userClient.users.info({user: allUserIds[0]})
+    const reportedUserEmail = targetedUser.user?.profile?.email || "";
+ 
 
     if (allUserIds.length === 0) {
       throw new Error("Select users or enter their user IDs");
@@ -364,6 +419,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
             "How Was This Resolved": finalsolution,
             "If Banned, Until When": banDate || null,
             "Link To Message": permalink,
+            // "Name": reportedUserName,
+            "Email": reportedUserEmail,
           },
         },
       ]);
@@ -373,6 +430,8 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Reported Users:*\n${allUserIds
         .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
         .join(", ")}`,
+        // `*Reported User's Name:*\n${reportedUserName || "N/A"}`,
+        `*Reported User's Email:*\n${reportedUserEmail || "N/A"}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users
         .map((user) => `<@${user}>`)
         .join(", ")}`,
@@ -545,6 +604,7 @@ app.command("/prevreports", async ({ command, ack, client, respond }) => {
           .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
           .join(", ");
       };
+      
       const reportEntries = records.map((record) => {
         const fields = record.fields;
         const date = new Date(fields["Time Of Report"]).toLocaleDateString(
@@ -786,7 +846,5 @@ app.event("reaction_added", async ({ event, client }) => {
 
   schedule.scheduleJob("*/30 * * * * *", async () => {
     await checkPendingThreads(app.client);
-    // hackatime ban chekerio
-    require("./hackatime_log")(app, keyv);
   });
 })();

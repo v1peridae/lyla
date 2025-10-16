@@ -1,7 +1,9 @@
 # LYLA
+
+### ⚠️ LYLA has now been moved to [hackclub/lyla](https://github.com/hackclub/lyla)
 Lyla, inspired by Miguel Ohara's assisant from Across The Spiderverse is a moderation record keeping tool for the FD. Helps us have a clearer idea of a couple of moderation-related stuff. <br><br>
 
-- LYLA:
+- LYLA
   1. Logs moderation actions
   2. Sends reminders on actions to be taken
   3. Helps out with finding conduct records

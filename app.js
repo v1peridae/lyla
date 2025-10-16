@@ -419,7 +419,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
             "How Was This Resolved": finalsolution,
             "If Banned, Until When": banDate || null,
             "Link To Message": permalink,
-            "Name": reportedUserName,
+            // "Name": reportedUserName,
             "Email": reportedUserEmail,
           },
         },
@@ -430,7 +430,7 @@ app.view("conduct_report", async ({ ack, view, client }) => {
       `*Reported Users:*\n${allUserIds
         .map((id) => `<@${id.replace(/[<@>]/g, "")}>`)
         .join(", ")}`,
-        `*Reported User's Name:*\n${reportedUserName || "N/A"}`,
+        // `*Reported User's Name:*\n${reportedUserName || "N/A"}`,
         `*Reported User's Email:*\n${reportedUserEmail || "N/A"}`,
       `*Resolved By:*\n${values.resolved_by.resolver_select.selected_users
         .map((user) => `<@${user}>`)
